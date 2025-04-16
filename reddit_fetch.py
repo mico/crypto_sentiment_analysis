@@ -130,45 +130,96 @@ def get_coin_keywords():
         'MATIC': ['MATIC', 'POLYGON', 'MATICUSD']
     }
 
-def fetch_reddit_data(reddit, subreddit_name, analyzer, coin_keywords):
+def fetch_posts(reddit, subreddit_name, analyzer, coin_keywords, search_terms, limit=100, 
+               sort_types=None, time_filter='week'):
     """
-    Fetch and analyze posts from a specific subreddit
+    Generic function to fetch and analyze posts from a subreddit based on search terms
+    
+    Parameters:
+    - reddit: praw Reddit instance
+    - subreddit_name: name of the subreddit to search
+    - analyzer: sentiment analyzer instance
+    - coin_keywords: dictionary of coin keywords
+    - search_terms: list of terms to search for
+    - limit: maximum number of posts to fetch per term/sort
+    - sort_types: list of sort methods (defaults to ['hot'] if None)
+    - time_filter: time filter for searches
     """
+    if sort_types is None:
+        sort_types = ['hot']
+        
     subreddit = reddit.subreddit(subreddit_name)
     posts_data = []
+    request_count = 0
     
-    # Search for posts related to each coin
-    for coin in coin_keywords.keys():
+    for term in search_terms:
         try:
-            # Get hot posts and new posts
-            for post in subreddit.search(coin, limit=50, sort='hot'):
-                # Combine title and selftext for better context
-                full_text = f"{post.title} {post.selftext}"
-                sentiment_scores = analyzer.polarity_scores(full_text)
+            for sort_type in sort_types:
+                request_count += 1
+                # Reset timer if approaching rate limit
+                if request_count >= 50:
+                    print(f"Approaching rate limit, pausing for 10 seconds...")
+                    time.sleep(10)
+                    request_count = 0
                 
-                # Create post entry
-                post_data = {
-                    'id': f"RD_{post.id}",
-                    'domain': 'reddit.com',
-                    'title': post.title,
-                    'coins': extract_mentioned_coins(post.title, post.selftext, coin_keywords),
-                    'published_at': datetime.fromtimestamp(post.created_utc),
-                    'url': f"https://www.reddit.com{post.permalink}",
-                    'sentiment': determine_sentiment(sentiment_scores['compound'])
-                }
+                for post in subreddit.search(term, limit=limit, sort=sort_type, time_filter=time_filter):
+                    full_text = f"{post.title} {post.selftext}"
+                    sentiment_scores = analyzer.polarity_scores(full_text)
+                    
+                    # Create post entry
+                    post_data = {
+                        'id': f"RD_{post.id}",
+                        'domain': 'reddit.com',
+                        'title': post.title,
+                        'coins': extract_mentioned_coins(post.title, post.selftext, coin_keywords),
+                        'published_at': datetime.fromtimestamp(post.created_utc),
+                        'url': f"https://www.reddit.com{post.permalink}",
+                        'sentiment': determine_sentiment(sentiment_scores['compound'])
+                    }
+                    
+                    # Only add posts that have mentioned coins
+                    if post_data['coins']:
+                        posts_data.append(post_data)
                 
-                # Only add posts that have mentioned coins
-                if post_data['coins']:
-                    posts_data.append(post_data)
-            
-            # Rate limiting
-            time.sleep(2)
+                # Small pause between requests
+                time.sleep(0.5)
             
         except Exception as e:
-            print(f"Error fetching data for {coin} in {subreddit_name}: {e}")
+            print(f"Error fetching data for term '{term}' in {subreddit_name}: {e}")
             continue
     
     return posts_data
+
+def fetch_reddit_data(reddit, subreddit_name, analyzer, coin_keywords):
+    """
+    Fetch and analyze posts related to specific coins from a subreddit
+    """
+    # Use coin names as search terms
+    search_terms = coin_keywords.keys()
+    return fetch_posts(
+        reddit, 
+        subreddit_name, 
+        analyzer, 
+        coin_keywords, 
+        search_terms=search_terms,
+        sort_types=['hot', 'new', 'top'],
+        limit=100
+    )
+
+def fetch_general_crypto_posts(reddit, subreddit_name, analyzer, coin_keywords):
+    """
+    Fetch general crypto discussion posts that might not mention specific coins
+    """
+    general_terms = ['crypto', 'cryptocurrency', 'blockchain', 'trading', 'market', 'bull', 'bear']
+    return fetch_posts(
+        reddit, 
+        subreddit_name, 
+        analyzer, 
+        coin_keywords, 
+        search_terms=general_terms,
+        sort_types=['hot', 'new', 'top'],
+        limit=75
+    )
 
 def main():
     # Check for required environment variables
@@ -196,6 +247,12 @@ def main():
         posts_data = fetch_reddit_data(reddit, subreddit_name, analyzer, coin_keywords)
         all_posts_data.extend(posts_data)
         time.sleep(5)  # Rate limiting between subreddits
+    
+    for subreddit_name in get_crypto_subreddits():
+        print(f"Fetching general crypto discussions from r/{subreddit_name}...")
+        general_posts = fetch_general_crypto_posts(reddit, subreddit_name, analyzer, coin_keywords)
+        all_posts_data.extend(general_posts)
+        time.sleep(3)  # Rate limiting
     
     if all_posts_data:
         # Convert to DataFrame
