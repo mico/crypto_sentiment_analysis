@@ -7,7 +7,7 @@ from collections import Counter
 import pytz
 
 st.set_page_config(
-    page_title="SenCrypto",
+    page_title="Reddit sentiment data",
     page_icon="chart_with_upwards_trend",
     layout="wide"
 )
