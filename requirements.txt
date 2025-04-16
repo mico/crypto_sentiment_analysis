@@ -1,0 +1,11 @@
+requests
+pandas
+textblob
+numpy
+plotly
+streamlit
+praw
+vaderSentiment
+pytest
+vcrpy
+python-dotenv
