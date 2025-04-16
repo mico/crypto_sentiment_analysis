@@ -1,0 +1,58 @@
+name: BDD Tests
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - '**.py'
+      - '**.feature'
+      - 'requirements.txt'
+      - '.github/workflows/bdd-tests.yml'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - '**.py'
+      - '**.feature'
+      - 'requirements.txt'
+      - '.github/workflows/bdd-tests.yml'
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  bdd-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+                
+    - name: Create empty .env.testing file
+      run: |
+        touch .env.testing
+        # Add any required test environment variables
+        echo "TEST_REDDIT_CLIENT_ID=dummy_id" >> .env.testing
+        echo "TEST_REDDIT_CLIENT_SECRET=dummy_secret" >> .env.testing
+        echo "TEST_REDDIT_USER_AGENT=python:crypto-sentiment-test:v1.0" >> .env.testing
+        
+    - name: Run BDD tests
+      run: |
+        python -m pytest test_reddit_fetch_vcr.py -v --gherkin-terminal-reporter
+        
+    - name: Run BDD tests with JUnit XML output
+      if: always()  # Run even if previous step fails
+      run: |
+        python -m pytest test_reddit_fetch_vcr.py -v --junitxml=test-results.xml
+      
+    - name: Publish Test Results
+      uses: EnricoMi/publish-unit-test-result-action@v1
+      if: always()  # Run even if tests fail
+      with:
+        files: "test-results.xml"
