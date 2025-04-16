@@ -20,7 +20,7 @@ conn.close()
 # Update the datetime parsing to handle mixed formats
 query_df['published_at'] = pd.to_datetime(query_df['published_at'], format='mixed', utc=True).dt.tz_localize(None)
 
-st.header("SenCrypto")
+st.header("Reddit sentiment data")
 
 # Add data source selector
 data_source = st.selectbox(

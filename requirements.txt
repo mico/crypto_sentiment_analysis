@@ -9,3 +9,4 @@ vaderSentiment
 pytest
 vcrpy
 python-dotenv
+pytest-bdd

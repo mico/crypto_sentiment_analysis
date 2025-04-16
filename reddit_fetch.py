@@ -5,6 +5,15 @@ import sqlite3
 from datetime import datetime
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import time
+import re
+import logging
+
+# Set up logging
+logging.basicConfig(
+    filename='coin_detection.log',
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 def initialize_database(db_path='crypto_data.db'):
     """
@@ -102,13 +111,23 @@ def determine_sentiment(compound_score):
 
 def extract_mentioned_coins(title, content, coin_keywords):
     """
-    Extract mentioned cryptocurrency symbols from text
+    Extract mentioned cryptocurrency symbols from text with improved precision
     """
     text = f"{title} {content}".upper()
     mentioned_coins = []
     
     for coin, keywords in coin_keywords.items():
-        if any(keyword in text for keyword in keywords):
+        # Check if any keyword is found as a whole word
+        found = False
+        for keyword in keywords:
+            # Add word boundary check (space, punctuation, or start/end of text)
+            # This regex pattern looks for the keyword surrounded by non-alphanumeric chars or text boundaries
+            pattern = r'(^|[^\w])' + re.escape(keyword) + r'($|[^\w])'
+            if re.search(pattern, text):
+                found = True
+                break
+                
+        if found:
             mentioned_coins.append(coin)
     
     return ','.join(mentioned_coins) if mentioned_coins else ''

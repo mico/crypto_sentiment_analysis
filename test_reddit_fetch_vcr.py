@@ -6,6 +6,8 @@ import pandas as pd
 import praw
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from dotenv import load_dotenv
+from pytest_bdd import scenarios, given, when, then, parsers
+from pytest_bdd.parser import Feature, Scenario
 
 # Load the .env.testing file
 load_dotenv('.env.testing')
@@ -24,11 +26,33 @@ my_vcr = vcr.VCR(
     cassette_library_dir='fixtures/vcr_cassettes',
     record_mode='once',
     match_on=['uri', 'method'],
-    # filter_headers=['authorization', 'user-agent'],  # Don't record sensitive headers
-    # filter_query_parameters=['auth_token', 'key', 'client_id', 'client_secret'],  # Don't record API keys
 )
 
-# Fixture for Reddit API client
+# Register all scenarios from feature files
+scenarios('features/coin_extraction.feature')
+scenarios('features/sentiment_analysis.feature')
+scenarios('features/reddit_data_fetching.feature')
+
+# Hook to add VCR for scenarios with @vcr tag
+@pytest.hookimpl(hookwrapper=True)
+def pytest_pyfunc_call(pyfuncitem):
+    """Apply VCR cassette for scenarios tagged with @vcr."""
+    if pyfuncitem.funcargs.get('request') and hasattr(pyfuncitem.funcargs['request'], 'getfixturevalue'):
+        try:
+            if 'fetch_subreddit_data' in pyfuncitem._fixtureinfo.argnames:
+                subreddit = pyfuncitem.funcargs.get('subreddit') or pyfuncitem._fixtureinfo.funcargs.get('subreddit')
+                if subreddit:
+                    cassette_name = f'test_fetch_reddit_{subreddit.lower()}_data'
+                    with my_vcr.use_cassette(f'{cassette_name}.yaml'):
+                        yield
+                        return
+        except (AttributeError, KeyError):
+            pass
+    
+    yield  # Default behavior for other functions
+
+# Fixtures ----------------------------------------------
+
 @pytest.fixture
 def reddit_client():
     """Create a real Reddit client for testing."""
@@ -43,102 +67,142 @@ def reddit_client():
         user_agent=user_agent
     )
 
-# Fixture for VADER sentiment analyzer
 @pytest.fixture
 def sentiment_analyzer():
     """Create a real VADER sentiment analyzer."""
     return SentimentIntensityAnalyzer()
 
-# Fixture for test coin keywords (smaller set for faster tests)
 @pytest.fixture
 def test_coin_keywords():
     """Provide a smaller set of coin keywords for testing."""
     return {
         'BTC': ['BTC', 'BITCOIN', 'BTCUSD'],
-        'ETH': ['ETH', 'ETHEREUM', 'ETHUSD']
+        'ETH': ['ETH', 'ETHEREUM', 'ETHUSD'],
+        'ADA': ['ADA', 'CARDANO', 'HOSKINSON'],
+        'SOL': ['SOL', 'SOLANA']
     }
 
-# Test extract_mentioned_coins function
-def test_extract_mentioned_coins(test_coin_keywords):
-    # Test with Bitcoin mentions
-    text1 = "Bitcoin is going up"
-    content1 = "BTC to the moon!"
-    coins1 = extract_mentioned_coins(text1, content1, test_coin_keywords)
-    assert 'BTC' in coins1
-    
-    # Test with multiple coin mentions
-    text2 = "ETH vs BTC"
-    content2 = "Ethereum and Bitcoin comparison"
-    coins2 = extract_mentioned_coins(text2, content2, test_coin_keywords)
-    assert 'BTC' in coins2
-    assert 'ETH' in coins2
-    
-    # Test with no coin mentions
-    text3 = "Market analysis"
-    content3 = "The crypto market is volatile"
-    coins3 = extract_mentioned_coins(text3, content3, test_coin_keywords)
-    assert coins3 == ''
+# Common Steps -----------------------------------------
 
-# Test determine_sentiment function with parameterized inputs
-@pytest.mark.parametrize("score, expected_sentiment", [
-    (0.5, 'Positive'),
-    (0.05, 'Positive'),  # Boundary condition
-    (0.0, 'Neutral'),
-    (-0.05, 'Negative'),  # Boundary condition
-    (-0.5, 'Negative'),
-])
-def test_determine_sentiment(score, expected_sentiment):
-    assert determine_sentiment(score) == expected_sentiment
+@given("a set of cryptocurrency keywords", target_fixture="coin_keywords")
+def given_cryptocurrency_keywords(test_coin_keywords):
+    """Return coin keywords for use in steps."""
+    return test_coin_keywords
 
-# Test fetch_reddit_data function using VCR to record/replay API responses
-@my_vcr.use_cassette()
-def test_fetch_reddit_bitcoin_data(reddit_client, sentiment_analyzer, test_coin_keywords):
-    """Test fetching Bitcoin-related data from Reddit."""
-    # Use a smaller set of keywords just for Bitcoin for this test
-    btc_keywords = {'BTC': test_coin_keywords['BTC']}
+@given("a Reddit client", target_fixture="client")
+def given_reddit_client(reddit_client):
+    """Return Reddit client for use in steps."""
+    return reddit_client
+
+@given("a sentiment analyzer", target_fixture="analyzer")
+def given_sentiment_analyzer(sentiment_analyzer):
+    """Return sentiment analyzer for use in steps."""
+    return sentiment_analyzer
+
+# Feature: Coin Extraction Steps -----------------------
+
+@when(parsers.parse('I analyze the title "{title}" and content "{content}"'), target_fixture="extraction_data")
+def analyze_text(title, content, coin_keywords):
+    """Analyze text for coin mentions and store input for later assertions."""
+    return {
+        "title": title, 
+        "content": content, 
+        "coin_keywords": coin_keywords,
+        "result": extract_mentioned_coins(title, content, coin_keywords)
+    }
+
+@then(parsers.parse('the extracted coins should include "{coin}"'))
+def extracted_coins_include(extraction_data, coin):
+    """Check if extracted coins include the expected coin."""
+    assert coin in extraction_data["result"]
+
+@then(parsers.parse('the extracted coins should not include "{coin}"'))
+def extracted_coins_not_include(extraction_data, coin):
+    """Check if extracted coins don't include the specified coin."""
+    coins = extraction_data["result"]
+    assert coin not in coins.split(',') if coins else True
+
+@then("there should be no extracted coins")
+def no_extracted_coins(extraction_data):
+    """Check if no coins were extracted."""
+    assert extraction_data["result"] == ''
+
+# Feature: Sentiment Analysis Steps -------------------
+
+@when(parsers.parse("I have a sentiment score of {score:f}"), target_fixture="sentiment_context")
+def create_sentiment_score(score):
+    """Store sentiment score for later assertions."""
+    return {
+        "score": score,
+        "sentiment": determine_sentiment(score)
+    }
+
+@then(parsers.parse('the sentiment should be classified as "{expected_sentiment}"'))
+def check_sentiment_classification(sentiment_context, expected_sentiment):
+    """Check if the sentiment is classified correctly."""
+    assert sentiment_context["sentiment"] == expected_sentiment
+
+# Feature: Reddit Data Fetching Steps -----------------
+
+@when(parsers.parse('I fetch data from the "{subreddit}" subreddit'), target_fixture="fetch_results")
+def fetch_subreddit_data(subreddit, client, analyzer, coin_keywords):
+    """Fetch data from a specific subreddit."""
+    # For Bitcoin, use only BTC keywords to ensure matches
+    if subreddit == "Bitcoin":
+        btc_keywords = {'BTC': coin_keywords['BTC']}
+        with my_vcr.use_cassette(f'test_fetch_reddit_{subreddit.lower()}_data.yaml'):
+            result = fetch_reddit_data(client, subreddit, analyzer, btc_keywords)
+    else:
+        with my_vcr.use_cassette(f'test_fetch_reddit_{subreddit.lower()}_data.yaml'):
+            result = fetch_reddit_data(client, subreddit, analyzer, coin_keywords)
     
-    # Run the function with real API (or recorded responses)
-    result = fetch_reddit_data(reddit_client, 'Bitcoin', sentiment_analyzer, btc_keywords)
-    
-    # Validate the results
+    return {
+        "result": result, 
+        "subreddit": subreddit
+    }
+
+@then("I should get a list of post data")
+def check_post_data_list(fetch_results):
+    """Check if the result is a list and contains data."""
+    result = fetch_results["result"]
     assert isinstance(result, list)
-    
-    # We should get some results (the exact number depends on the API response)
     assert len(result) > 0
-    
-    # Check the structure of the results
+
+@then(parsers.parse('each post should mention "{coin}"'))
+def each_post_mentions_coin(fetch_results, coin):
+    """Check if each post mentions the specified coin."""
+    result = fetch_results["result"]
     for post_data in result:
-        # All posts should mention Bitcoin
-        assert 'BTC' in post_data['coins']
-        
-        # Check the data structure
+        assert coin in post_data['coins']
+
+@then("each post should contain the required fields")
+def check_post_fields(fetch_results):
+    """Check if each post contains all the required fields."""
+    result = fetch_results["result"]
+    for post_data in result:
         assert 'id' in post_data and post_data['id'].startswith('RD_')
         assert 'domain' in post_data and post_data['domain'] == 'reddit.com'
         assert 'title' in post_data and isinstance(post_data['title'], str)
         assert 'published_at' in post_data and isinstance(post_data['published_at'], datetime)
         assert 'url' in post_data and post_data['url'].startswith('https://www.reddit.com/')
-        assert 'sentiment' in post_data and post_data['sentiment'] in ['Positive', 'Neutral', 'Negative']
+        assert 'sentiment' in post_data
 
-# Test with a different subreddit
-@my_vcr.use_cassette()
-def test_fetch_reddit_crypto_data(reddit_client, sentiment_analyzer, test_coin_keywords):
-    """Test fetching general crypto data from the CryptoCurrency subreddit."""
-    # Use both BTC and ETH keywords for this test
-    result = fetch_reddit_data(reddit_client, 'CryptoCurrency', sentiment_analyzer, test_coin_keywords)
+@then("each post should have a sentiment classification")
+def check_sentiment_field(fetch_results):
+    """Check if each post has a sentiment classification."""
+    result = fetch_results["result"]
+    for post_data in result:
+        assert post_data['sentiment'] in ['Positive', 'Neutral', 'Negative']
+
+@then("the results should include mentions of at least one test coin")
+def check_mentions_test_coins(fetch_results, coin_keywords):
+    """Check if the results include mentions of at least one test coin."""
+    result = fetch_results["result"]
     
-    # Basic validation
-    assert isinstance(result, list)
-    
-    # We should get some results
-    assert len(result) > 0
-    
-    # Check if we have both Bitcoin and Ethereum mentions in the results
     coins_mentioned = set()
     for post_data in result:
-        coins = post_data['coins'].split(',')
-        coins_mentioned.update(coins)
+        if post_data['coins']:
+            coins = post_data['coins'].split(',')
+            coins_mentioned.update(coins)
     
-    # We should have at least one of our test coins
-    assert len(coins_mentioned.intersection({'BTC', 'ETH'})) > 0
-
-# You can add more specific tests for different scenarios 
+    assert len(coins_mentioned.intersection(set(coin_keywords.keys()))) > 0 
