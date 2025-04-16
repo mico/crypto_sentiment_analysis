@@ -44,12 +44,12 @@ jobs:
         
     - name: Run BDD tests
       run: |
-        python -m pytest test_reddit_fetch_vcr.py -v --gherkin-terminal-reporter
+        python -m pytest -v --gherkin-terminal-reporter
         
     - name: Run BDD tests with JUnit XML output
       if: always()  # Run even if previous step fails
       run: |
-        python -m pytest test_reddit_fetch_vcr.py -v --junitxml=test-results.xml
+        python -m pytest -v --junitxml=test-results.xml
       
     - name: Publish Test Results
       uses: EnricoMi/publish-unit-test-result-action@v1
