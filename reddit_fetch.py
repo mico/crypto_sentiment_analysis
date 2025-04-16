@@ -75,7 +75,17 @@ def get_crypto_subreddits():
         "ethereum",
         "CryptoMarkets",
         "binance",
-        "SatoshiStreetBets"
+        "SatoshiStreetBets",
+        # Add these additional subreddits
+        "altcoin",
+        "CryptoMoonShots",
+        "solana",
+        "Ripple",
+        "cardano",
+        "dogecoin",
+        "CryptoTechnology",
+        "CryptoNews",
+        "ethtrader"
     ]
 
 def determine_sentiment(compound_score):
@@ -108,16 +118,16 @@ def get_coin_keywords():
     Dictionary of coins and their related keywords to search for
     """
     return {
-        'BTC': ['BTC', 'BITCOIN', 'BTCUSD'],
-        'ETH': ['ETH', 'ETHEREUM', 'ETHUSD'],
-        'BNB': ['BNB', 'BINANCE COIN'],
-        'SOL': ['SOL', 'SOLANA'],
-        'XRP': ['XRP', 'RIPPLE'],
-        'ADA': ['ADA', 'CARDANO'],
-        'DOGE': ['DOGE', 'DOGECOIN'],
-        'DOT': ['DOT', 'POLKADOT'],
-        'AVAX': ['AVAX', 'AVALANCHE'],
-        'MATIC': ['MATIC', 'POLYGON']
+        'BTC': ['BTC', 'BITCOIN', 'BTCUSD', 'SATS', 'SATOSHI', 'NAKAMOTO'],
+        'ETH': ['ETH', 'ETHEREUM', 'ETHUSD', 'ETHBTC', 'VITALIK', 'BUTERIN', 'GWEI'],
+        'BNB': ['BNB', 'BINANCE COIN', 'BINANCE CHAIN', 'CZ'],
+        'SOL': ['SOL', 'SOLANA', 'SOLUSD', 'SOLBTC'],
+        'XRP': ['XRP', 'RIPPLE', 'XRPUSD', 'GARLINGHOUSE'],
+        'ADA': ['ADA', 'CARDANO', 'HOSKINSON', 'ADAUSD'],
+        'DOGE': ['DOGE', 'DOGECOIN', 'DOGEUSD', 'SHIBA', 'MUSK'],
+        'DOT': ['DOT', 'POLKADOT', 'DOTUSD', 'GAVIN WOOD'],
+        'AVAX': ['AVAX', 'AVALANCHE', 'AVAXUSD'],
+        'MATIC': ['MATIC', 'POLYGON', 'MATICUSD']
     }
 
 def fetch_reddit_data(reddit, subreddit_name, analyzer, coin_keywords):
