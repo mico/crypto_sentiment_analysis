@@ -146,7 +146,7 @@ def display_articles(filtered_df, label, value):
             if domain is None or domain == '' or 'cryptopanic' in str(domain):
                 url = f'https://cryptopanic.com/news/click/{article["id"]}/'
             else:
-                url = article['id'].replace('RD_', 'https://reddit.com/')
+                url = article['url']
             # Display article title with link
             st.markdown(f"[{article['title']}]({url})")
 
