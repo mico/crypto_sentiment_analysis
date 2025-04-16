@@ -6,6 +6,55 @@ from datetime import datetime
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import time
 
+def initialize_database(db_path='crypto_data.db'):
+    """
+    Create the database and required tables if they don't exist
+    """
+    # Check if database file exists
+    db_exists = os.path.isfile(db_path)
+    
+    # Connect to the database (creates it if it doesn't exist)
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+        
+    if not db_exists:
+        print(f"Database file {db_path} not found. Creating new database...")
+        
+        cursor = conn.cursor()
+        # Create the crypto_news_sentiment table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS crypto_news_sentiment (
+            "index" INTEGER,
+            "id" INTEGER,
+            "domain" TEXT,
+            "title" TEXT,
+            "coins" TEXT,
+            "published_at" TEXT,
+            "url" TEXT,
+            "sentiment" TEXT
+        )
+        ''')
+        
+        # Create any indexes that might improve performance
+        cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_coins ON crypto_news_sentiment(coins)
+        ''')
+        
+        cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_sentiment ON crypto_news_sentiment(sentiment)
+        ''')
+        
+        cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_published_at ON crypto_news_sentiment(published_at)
+        ''')
+        
+        conn.commit()
+        print("Database initialized successfully.")
+    else:
+        print(f"Using existing database: {db_path}")
+
+    return conn
+
 def setup_reddit():
     """
     Initialize Reddit API connection
@@ -122,9 +171,8 @@ def main():
     reddit = setup_reddit()
     analyzer = SentimentIntensityAnalyzer()
     coin_keywords = get_coin_keywords()
-    
-    # Connect to database
-    conn = sqlite3.connect('crypto_data.db')
+    db_path = 'crypto_data.db'
+    conn = initialize_database(db_path)
     
     # Get existing Reddit post IDs to avoid duplicates
     query = "SELECT id FROM crypto_news_sentiment WHERE domain='reddit.com'"
