@@ -1,10 +1,11 @@
-import streamlit as st
 import sqlite3
-import pandas as pd
-from datetime import datetime, timedelta
-import plotly.express as px
 from collections import Counter
+from datetime import datetime, timedelta
+
+import pandas as pd
+import plotly.express as px
 import pytz
+import streamlit as st
 
 st.set_page_config(
     page_title="Reddit sentiment data",
