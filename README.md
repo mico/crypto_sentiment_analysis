@@ -2,9 +2,9 @@
 
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green)](https://opensource.org/licenses/MIT)
-[![Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://streamlit.io)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=mico_crypto_sentiment_analysis&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=mico_crypto_sentiment_analysis)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=mico_crypto_sentiment_analysis&metric=sqale_rating)](https://sonarcloud.io/dashboard?id=mico_crypto_sentiment_analysis)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=mico_crypto_sentiment_analysis&metric=coverage)](https://sonarcloud.io/dashboard?id=mico_crypto_sentiment_analysis)
 
 A comprehensive tool for collecting, analyzing, and visualizing cryptocurrency sentiment data from Reddit.
 
@@ -86,10 +86,8 @@ The dashboard will be accessible at `http://localhost:8501` and displays:
 
 ## Future Improvements
 
-- Implement more advanced NLP techniques
-- Add price correlation analysis
-- Create alerts for significant sentiment shifts
-- Expand the dashboard with more analytics
+- MCP support
+- REST API
 
 ## Contributing
 
