@@ -166,7 +166,7 @@ def process_reddit_submission(submission, analyzer, coin_keywords):
     - dict: post data dictionary with sentiment and coin information
     """
     full_text = f"{submission.title} {submission.selftext}"
-    logging.debug(f"Analyzing text: {text[:200]}...")
+    logging.debug(f"Analyzing text: {full_text[:200]}...")
 
     sentiment_scores = analyzer.polarity_scores(full_text)
     
