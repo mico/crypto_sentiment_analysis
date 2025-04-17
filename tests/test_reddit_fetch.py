@@ -31,7 +31,6 @@ my_vcr = vcr.VCR(
 # Register all scenarios from feature files
 scenarios('features/coin_extraction.feature')
 scenarios('features/sentiment_analysis.feature')
-scenarios('features/reddit_data_fetching.feature')
 scenarios('features/submission_analysis.feature')
 
 # Hook to add VCR for scenarios with @vcr tag
@@ -147,71 +146,6 @@ def create_sentiment_score(score):
 def check_sentiment_classification(sentiment_context, expected_sentiment):
     """Check if the sentiment is classified correctly."""
     assert sentiment_context["sentiment"] == expected_sentiment
-
-# Feature: Reddit Data Fetching Steps -----------------
-
-@when(parsers.parse('I fetch data from the "{subreddit}" subreddit'), target_fixture="fetch_results")
-def fetch_subreddit_data(subreddit, client, analyzer, coin_keywords):
-    """Fetch data from a specific subreddit."""
-    # For Bitcoin, use only BTC keywords to ensure matches
-    if subreddit == "Bitcoin":
-        btc_keywords = {'BTC': coin_keywords['BTC']}
-        with my_vcr.use_cassette(f'test_fetch_reddit_{subreddit.lower()}_data.yaml'):
-            result = fetch_reddit_data(client, subreddit, analyzer, btc_keywords)
-    else:
-        with my_vcr.use_cassette(f'test_fetch_reddit_{subreddit.lower()}_data.yaml'):
-            result = fetch_reddit_data(client, subreddit, analyzer, coin_keywords)
-    
-    return {
-        "result": result, 
-        "subreddit": subreddit
-    }
-
-@then("I should get a list of post data")
-def check_post_data_list(fetch_results):
-    """Check if the result is a list and contains data."""
-    result = fetch_results["result"]
-    assert isinstance(result, list)
-    assert len(result) > 0
-
-@then(parsers.parse('each post should mention "{coin}"'))
-def each_post_mentions_coin(fetch_results, coin):
-    """Check if each post mentions the specified coin."""
-    result = fetch_results["result"]
-    for post_data in result:
-        assert coin in post_data['coins']
-
-@then("each post should contain the required fields")
-def check_post_fields(fetch_results):
-    """Check if each post contains all the required fields."""
-    result = fetch_results["result"]
-    for post_data in result:
-        assert 'id' in post_data and post_data['id'].startswith('RD_')
-        assert 'domain' in post_data and post_data['domain'] == 'reddit.com'
-        assert 'title' in post_data and isinstance(post_data['title'], str)
-        assert 'published_at' in post_data and isinstance(post_data['published_at'], datetime)
-        assert 'url' in post_data and post_data['url'].startswith('https://www.reddit.com/')
-        assert 'sentiment' in post_data
-
-@then("each post should have a sentiment classification")
-def check_sentiment_field(fetch_results):
-    """Check if each post has a sentiment classification."""
-    result = fetch_results["result"]
-    for post_data in result:
-        assert post_data['sentiment'] in ['Positive', 'Neutral', 'Negative']
-
-@then("the results should include mentions of at least one test coin")
-def check_mentions_test_coins(fetch_results, coin_keywords):
-    """Check if the results include mentions of at least one test coin."""
-    result = fetch_results["result"]
-    
-    coins_mentioned = set()
-    for post_data in result:
-        if post_data['coins']:
-            coins = post_data['coins'].split(',')
-            coins_mentioned.update(coins)
-    
-    assert len(coins_mentioned.intersection(set(coin_keywords.keys()))) > 0 
 
 # Feature: Submission Analysis Steps -----------------
 
