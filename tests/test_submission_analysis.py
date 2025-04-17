@@ -4,7 +4,8 @@ from pytest_bdd import scenarios, given, when, then, parsers
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 # Import the functions to test
-from reddit_fetch import extract_mentioned_coins, determine_sentiment
+from reddit_fetch import process_reddit_submission
+from tests.utils import load_test_submission
 
 # Register scenarios from the submission analysis feature file
 scenarios('features/submission_analysis.feature')
@@ -51,8 +52,6 @@ def given_test_submissions(test_submissions_dir):
 @when(parsers.parse('I analyze the submission with ID "{submission_id}"'), target_fixture="analysis_result")
 def analyze_test_submission(submission_id, submissions_dir, analyzer, coin_keywords):
     """Analyze a test submission by ID and return the result"""
-    from reddit_fetch import load_test_submission, process_reddit_submission
-    
     # Load the test submission
     submission = load_test_submission(submission_id, submissions_dir)
     
