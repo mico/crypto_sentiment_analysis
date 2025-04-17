@@ -4,11 +4,17 @@ from pytest_bdd import scenarios, given, when, then, parsers
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 # Import the functions to test
-from reddit_fetch import process_reddit_submission
+from reddit_fetch import process_reddit_submission, load_config
 from tests.utils import load_test_submission
 
 # Register scenarios from the submission analysis feature file
 scenarios('features/submission_analysis.feature')
+
+@pytest.fixture
+def test_config():
+    """Load a test configuration or use the main one."""
+    # You could create a test-specific config or use the main one
+    return load_config('config.yaml')
 
 @pytest.fixture
 def sentiment_analyzer():
@@ -16,13 +22,15 @@ def sentiment_analyzer():
     return SentimentIntensityAnalyzer()
 
 @pytest.fixture
-def test_coin_keywords():
+def test_coin_keywords(test_config):
     """Provide a smaller set of coin keywords for testing."""
+    # Use a subset of the main config for faster testing
+    all_keywords = test_config['coin_keywords']
     return {
-        'BTC': ['BTC', 'BITCOIN', 'BTCUSD'],
-        'ETH': ['ETH', 'ETHEREUM', 'ETHUSD'],
-        'ADA': ['ADA', 'CARDANO', 'HOSKINSON'],
-        'SOL': ['SOL', 'SOLANA']
+        'BTC': all_keywords['BTC'],
+        'ETH': all_keywords['ETH'],
+        'ADA': all_keywords['ADA'],
+        'SOL': all_keywords['SOL']
     }
 
 @pytest.fixture

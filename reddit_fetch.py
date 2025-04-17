@@ -1,12 +1,13 @@
 import os
-import praw
+import praw # type: ignore [import]
 import pandas as pd
 import sqlite3
 from datetime import datetime
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer # type: ignore [import]
 import time
 import re
 import logging
+import yaml  # type: ignore [import]
 
 # Set up logging
 logging.basicConfig(
@@ -74,28 +75,32 @@ def setup_reddit():
         user_agent=os.environ["REDDIT_USER_AGENT"]
     )
 
-def get_crypto_subreddits():
+def load_config(config_path='config.yaml'):
     """
-    List of cryptocurrency-related subreddits to monitor
+    Load configuration from YAML file
+    
+    Parameters:
+    - config_path: Path to the YAML config file
+    
+    Returns:
+    - dict: Configuration dictionary
     """
-    return [
-        "CryptoCurrency",
-        "Bitcoin",
-        "ethereum",
-        "CryptoMarkets",
-        "binance",
-        "SatoshiStreetBets",
-        # Add these additional subreddits
-        "altcoin",
-        "CryptoMoonShots",
-        "solana",
-        "Ripple",
-        "cardano",
-        "dogecoin",
-        "CryptoTechnology",
-        "CryptoNews",
-        "ethtrader"
-    ]
+    try:
+        with open(config_path, 'r') as file:
+            return yaml.safe_load(file)
+    except FileNotFoundError:
+        logging.error(f"Config file not found: {config_path}")
+        raise
+    except yaml.YAMLError as e:
+        logging.error(f"Error parsing YAML config: {e}")
+        raise
+
+def get_crypto_subreddits(config_path='config.yaml'):
+    """
+    List of cryptocurrency-related subreddits to monitor from config
+    """
+    config = load_config(config_path)
+    return config['subreddits']
 
 def determine_sentiment(compound_score):
     """
@@ -135,22 +140,12 @@ def extract_mentioned_coins(title, content, coin_keywords):
     logging.debug(f"Final extracted coins: {result}")
     return result
 
-def get_coin_keywords():
+def get_coin_keywords(config_path='config.yaml'):
     """
-    Dictionary of coins and their related keywords to search for
+    Dictionary of coins and their related keywords to search for from config
     """
-    return {
-        'BTC': ['BTC', 'BITCOIN', 'BTCUSD', 'SATS', 'SATOSHI', 'NAKAMOTO'],
-        'ETH': ['ETH', 'ETHEREUM', 'ETHUSD', 'ETHBTC', 'VITALIK', 'BUTERIN', 'GWEI'],
-        'BNB': ['BNB', 'BINANCE COIN', 'BINANCE CHAIN', 'CZ'],
-        'SOL': ['SOL', 'SOLANA', 'SOLUSD', 'SOLBTC'],
-        'XRP': ['XRP', 'RIPPLE', 'XRPUSD', 'GARLINGHOUSE'],
-        'ADA': ['ADA', 'CARDANO', 'HOSKINSON', 'ADAUSD'],
-        'DOGE': ['DOGE', 'DOGECOIN', 'DOGEUSD', 'SHIBA', 'MUSK'],
-        'DOT': ['DOT', 'POLKADOT', 'DOTUSD', 'GAVIN WOOD'],
-        'AVAX': ['AVAX', 'AVALANCHE', 'AVAXUSD'],
-        'MATIC': ['MATIC', 'POLYGON', 'MATICUSD']
-    }
+    config = load_config(config_path)
+    return config['coin_keywords']
 
 def process_reddit_submission(submission, analyzer, coin_keywords):
     """
@@ -246,11 +241,12 @@ def fetch_reddit_data(reddit, subreddit_name, analyzer, coin_keywords):
         limit=100
     )
 
-def fetch_general_crypto_posts(reddit, subreddit_name, analyzer, coin_keywords):
+def fetch_general_crypto_posts(reddit, subreddit_name, analyzer, coin_keywords, config_path='config.yaml'):
     """
     Fetch general crypto discussion posts that might not mention specific coins
     """
-    general_terms = ['crypto', 'cryptocurrency', 'blockchain', 'trading', 'market', 'bull', 'bear']
+    config = load_config(config_path)
+    general_terms = config['general_terms']
     return fetch_posts(
         reddit, 
         subreddit_name, 
@@ -271,7 +267,8 @@ def main():
     # Initialize Reddit and VADER
     reddit = setup_reddit()
     analyzer = SentimentIntensityAnalyzer()
-    coin_keywords = get_coin_keywords()
+    config_path = 'config.yaml'
+    coin_keywords = get_coin_keywords(config_path)
     db_path = 'crypto_data.db'
     conn = initialize_database(db_path)
     
@@ -282,15 +279,15 @@ def main():
     all_posts_data = []
     
     # Fetch data from each subreddit
-    for subreddit_name in get_crypto_subreddits():
+    for subreddit_name in get_crypto_subreddits(config_path):
         print(f"Fetching data from r/{subreddit_name}...")
         posts_data = fetch_reddit_data(reddit, subreddit_name, analyzer, coin_keywords)
         all_posts_data.extend(posts_data)
         time.sleep(5)  # Rate limiting between subreddits
     
-    for subreddit_name in get_crypto_subreddits():
+    for subreddit_name in get_crypto_subreddits(config_path):
         print(f"Fetching general crypto discussions from r/{subreddit_name}...")
-        general_posts = fetch_general_crypto_posts(reddit, subreddit_name, analyzer, coin_keywords)
+        general_posts = fetch_general_crypto_posts(reddit, subreddit_name, analyzer, coin_keywords, config_path)
         all_posts_data.extend(general_posts)
         time.sleep(3)  # Rate limiting
     

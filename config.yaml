@@ -1,0 +1,89 @@
+# Cryptocurrency Analysis Configuration
+# 
+# This configuration file contains settings for the cryptocurrency sentiment analysis system.
+# For test fixtures, see the tests/fixtures directory.
+
+# List of cryptocurrency-related subreddits to monitor
+subreddits:
+  - CryptoCurrency
+  - Bitcoin
+  - ethereum
+  - CryptoMarkets
+  - binance
+  - SatoshiStreetBets
+  - altcoin
+  - CryptoMoonShots
+  - solana
+  - Ripple
+  - cardano
+  - dogecoin
+  - CryptoTechnology
+  - CryptoNews
+  - ethtrader
+
+# Dictionary of coins and their related keywords to search for
+coin_keywords:
+  BTC:
+    - BTC
+    - BITCOIN
+    - BTCUSD
+    - SATS
+    - SATOSHI
+    - NAKAMOTO
+  ETH:
+    - ETH
+    - ETHEREUM
+    - ETHUSD
+    - ETHBTC
+    - VITALIK
+    - BUTERIN
+    - GWEI
+  BNB:
+    - BNB
+    - BINANCE COIN
+    - BINANCE CHAIN
+    - CZ
+  SOL:
+    - SOL
+    - SOLANA
+    - SOLUSD
+    - SOLBTC
+  XRP:
+    - XRP
+    - RIPPLE
+    - XRPUSD
+    - GARLINGHOUSE
+  ADA:
+    - ADA
+    - CARDANO
+    - HOSKINSON
+    - ADAUSD
+  DOGE:
+    - DOGE
+    - DOGECOIN
+    - DOGEUSD
+    - SHIBA
+    - MUSK
+  DOT:
+    - DOT
+    - POLKADOT
+    - DOTUSD
+    - GAVIN WOOD
+  AVAX:
+    - AVAX
+    - AVALANCHE
+    - AVAXUSD
+  MATIC:
+    - MATIC
+    - POLYGON
+    - MATICUSD
+
+# Search terms for general crypto posts
+general_terms:
+  - crypto
+  - cryptocurrency
+  - blockchain
+  - trading
+  - market
+  - bull
+  - bear 
