@@ -120,6 +120,7 @@ def extract_mentioned_coins(title, content, coin_keywords):
         # Check if any keyword is found as a whole word
         found = False
         for keyword in keywords:
+            logging.debug(f"Matched {coin} with keyword '{keyword}'")
             # Add word boundary check (space, punctuation, or start/end of text)
             # This regex pattern looks for the keyword surrounded by non-alphanumeric chars or text boundaries
             pattern = r'(^|[^\w])' + re.escape(keyword) + r'($|[^\w])'
@@ -130,7 +131,9 @@ def extract_mentioned_coins(title, content, coin_keywords):
         if found:
             mentioned_coins.append(coin)
     
-    return ','.join(mentioned_coins) if mentioned_coins else ''
+    result = ','.join(mentioned_coins) if mentioned_coins else ''
+    logging.debug(f"Final extracted coins: {result}")
+    return result
 
 def get_coin_keywords():
     """
