@@ -7,6 +7,7 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import time
 import re
 import logging
+import yaml
 
 # Set up logging
 logging.basicConfig(
@@ -152,6 +153,36 @@ def get_coin_keywords():
         'MATIC': ['MATIC', 'POLYGON', 'MATICUSD']
     }
 
+def process_reddit_submission(submission, analyzer, coin_keywords):
+    """
+    Process a single reddit.submission object and extract the necessary data
+    
+    Parameters:
+    - submission: praw.models.Submission instance
+    - analyzer: sentiment analyzer instance
+    - coin_keywords: dictionary of coin keywords
+    
+    Returns:
+    - dict: post data dictionary with sentiment and coin information
+    """
+    full_text = f"{submission.title} {submission.selftext}"
+    logging.debug(f"Analyzing text: {text[:200]}...")
+
+    sentiment_scores = analyzer.polarity_scores(full_text)
+    
+    # Create post entry
+    post_data = {
+        'id': f"RD_{submission.id}",
+        'domain': 'reddit.com',
+        'title': submission.title,
+        'coins': extract_mentioned_coins(submission.title, submission.selftext, coin_keywords),
+        'published_at': datetime.fromtimestamp(submission.created_utc),
+        'url': f"https://www.reddit.com{submission.permalink}",
+        'sentiment': determine_sentiment(sentiment_scores['compound'])
+    }
+    
+    return post_data
+
 def fetch_posts(reddit, subreddit_name, analyzer, coin_keywords, search_terms, limit=100, 
                sort_types=None, time_filter='week'):
     """
@@ -185,19 +216,7 @@ def fetch_posts(reddit, subreddit_name, analyzer, coin_keywords, search_terms, l
                     request_count = 0
                 
                 for post in subreddit.search(term, limit=limit, sort=sort_type, time_filter=time_filter):
-                    full_text = f"{post.title} {post.selftext}"
-                    sentiment_scores = analyzer.polarity_scores(full_text)
-                    
-                    # Create post entry
-                    post_data = {
-                        'id': f"RD_{post.id}",
-                        'domain': 'reddit.com',
-                        'title': post.title,
-                        'coins': extract_mentioned_coins(post.title, post.selftext, coin_keywords),
-                        'published_at': datetime.fromtimestamp(post.created_utc),
-                        'url': f"https://www.reddit.com{post.permalink}",
-                        'sentiment': determine_sentiment(sentiment_scores['compound'])
-                    }
+                    post_data = process_reddit_submission(post, analyzer, coin_keywords)
                     
                     # Only add posts that have mentioned coins
                     if post_data['coins']:
@@ -242,6 +261,37 @@ def fetch_general_crypto_posts(reddit, subreddit_name, analyzer, coin_keywords):
         sort_types=['hot', 'new', 'top'],
         limit=75
     )
+
+def load_test_submission(submission_id, fixtures_dir='tests/fixtures/submissions'):
+    """
+    Load a test submission from a YAML file
+    
+    Parameters:
+    - submission_id: ID of the submission to load
+    - fixtures_dir: directory containing submission YAML files
+    
+    Returns:
+    - object: A submission-like object with attributes from the YAML file
+    """
+    
+    yaml_path = os.path.join(fixtures_dir, f"{submission_id}.yaml")
+    
+    try:
+        with open(yaml_path, 'r') as f:
+            submission_data = yaml.safe_load(f)
+            
+        # Create a simple object that mimics a Reddit submission
+        class TestSubmission:
+            def __init__(self, data):
+                self.__dict__.update(data)
+                
+                # Create a simple Subreddit-like object
+                if 'subreddit' in data and isinstance(data['subreddit'], str):
+                    self.subreddit = type('Subreddit', (), {'display_name': data['subreddit']})()
+        
+        return TestSubmission(submission_data)
+    except FileNotFoundError:
+        raise ValueError(f"Submission {submission_id} not found in fixtures directory")
 
 def main():
     # Check for required environment variables
@@ -294,4 +344,4 @@ def main():
     conn.close()
 
 if __name__ == "__main__":
-    main() 
+    main()
