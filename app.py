@@ -1,9 +1,10 @@
 import sqlite3
 from collections import Counter
 from datetime import datetime, timedelta
+from typing import Dict, List, Union
 
 import pandas as pd
-import plotly.express as px
+import plotly.express as px  # type: ignore [import]
 import pytz
 import streamlit as st
 
@@ -63,7 +64,7 @@ col1, col2 = st.columns(2)
 with col1:
     counts_df = filtered_df.groupby(['sentiment']).agg({'id': 'count'}).reset_index()
     filtered_agg_df = filtered_df.groupby(['datetime', 'sentiment']).agg({'id': 'count'}).reset_index()
-    crypto_list = sum([x.split(',') for x in filtered_df['coins'].values if x!=''],[])
+    crypto_list: List[str] = sum([x.split(',') for x in filtered_df['coins'].values if x!=''], [])
     crypto_list = [x for x in crypto_list if x not in ['OG','U']]
     crypto_count_dict = Counter(crypto_list)
     crypto_count_df = pd.DataFrame(list(crypto_count_dict.items()), columns=['crypto', 'count']).sort_values('count', ascending = False)
@@ -76,9 +77,9 @@ with col2:
     st.subheader('Top 10 Cryptos by Sentiment Counts')
     crypto_list_unique = list(set(crypto_list))
     crypto_list_unique.sort()
-    crypto_dict_list = []
+    crypto_dict_list: List[Dict[str, Union[str, int]]] = []
     for crypto in crypto_list_unique:
-        crypto_dict = {}
+        crypto_dict: Dict[str, Union[str, int]] = {}
         crypto_dict['coins'] = crypto
         crypto_df = filtered_df[filtered_df['coins'].str.contains(crypto)]
         crypto_dict['positive_count'] = len(crypto_df[crypto_df['sentiment'] == "Positive"])
@@ -86,11 +87,10 @@ with col2:
         crypto_dict['negative_count'] = len(crypto_df[crypto_df['sentiment'] == "Negative"])
         crypto_dict['total'] = len(crypto_df)
         crypto_dict_list.append(crypto_dict)
-    crypto_sentiment_df = pd.DataFrame(crypto_dict_list).sort_values('total', ascending= False)
-    st.write(f"Top 5 cryptos by positive counts: {', '.join([str(x[0]) for x in crypto_sentiment_df.sort_values('positive_count', ascending= False).head(5).values])}")
+    crypto_sentiment_df = pd.DataFrame(crypto_dict_list).sort_values('total', ascending=False)
+    st.write(f"Top 5 cryptos by positive counts: {', '.join([str(x[0]) for x in crypto_sentiment_df.sort_values('positive_count', ascending=False).head(5).values])}")
     st.write(f"Top 5 cryptos by negative counts: {', '.join([str(x[0]) for x in crypto_sentiment_df.sort_values('negative_count', ascending=False).head(5).values])}")
-    st.plotly_chart(px.bar(crypto_sentiment_df.head(10), x = "coins", y = ["positive_count", "neutral_count", "negative_count"]))
-
+    st.plotly_chart(px.bar(crypto_sentiment_df.head(10), x="coins", y=["positive_count", "neutral_count", "negative_count"]))
 
 
 col1, col2, col3 = st.columns(3)
@@ -132,6 +132,7 @@ neg_rate = len(neg_filtered_df)
 
 metric1, metric2, metric3 = st.columns(3)
 
+
 def display_articles(filtered_df, label, value):
     st.metric(label=label, value=value)
     if value > 0:
@@ -151,11 +152,12 @@ def display_articles(filtered_df, label, value):
             # Display article title with link
             st.markdown(f"[{article['title']}]({url})")
 
+
 with metric1:
     display_articles(pos_filtered_df, "Positive Articles", pos_rate)
-    
+
 with metric2:
     display_articles(neu_filtered_df, "Neutral Articles", neu_rate)
-    
+
 with metric3:
     display_articles(neg_filtered_df, "Negative Articles", neg_rate)

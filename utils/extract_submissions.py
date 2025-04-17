@@ -2,7 +2,9 @@
 import os
 import sys
 import time
+from typing import Any, Dict, List
 
+import praw  # type: ignore [import]
 import yaml
 
 from reddit_fetch import setup_reddit
@@ -11,7 +13,11 @@ from reddit_fetch import setup_reddit
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
-def extract_submission_by_id(reddit, submission_id, output_dir='tests/fixtures/submissions'):
+def extract_submission_by_id(
+    reddit: praw.Reddit, 
+    submission_id: str, 
+    output_dir: str = 'tests/fixtures/submissions'
+) -> None:
     """
     Extract a specific submission by ID and save it as a YAML file
 
@@ -25,10 +31,10 @@ def extract_submission_by_id(reddit, submission_id, output_dir='tests/fixtures/s
 
     try:
         # Get the submission
-        submission = reddit.submission(id=submission_id)
+        submission: praw.models.Submission = reddit.submission(id=submission_id)
 
         # Extract all necessary attributes
-        submission_data = {
+        submission_data: Dict[str, Any] = {
             'id': submission.id,
             'title': submission.title,
             'selftext': submission.selftext,
@@ -43,7 +49,7 @@ def extract_submission_by_id(reddit, submission_id, output_dir='tests/fixtures/s
         }
 
         # Save to YAML file
-        output_file = os.path.join(output_dir, f"{submission_id}.yaml")
+        output_file: str = os.path.join(output_dir, f"{submission_id}.yaml")
         with open(output_file, 'w') as f:
             yaml.dump(submission_data, f, default_flow_style=False)
 
@@ -53,7 +59,10 @@ def extract_submission_by_id(reddit, submission_id, output_dir='tests/fixtures/s
         print(f"Error extracting data for submission {submission_id}: {e}")
 
 
-def extract_multiple_submissions(submission_ids, output_dir='tests/fixtures/submissions'):
+def extract_multiple_submissions(
+    submission_ids: List[str], 
+    output_dir: str = 'tests/fixtures/submissions'
+) -> None:
     """
     Extract multiple submissions by ID and save them as YAML files
 
@@ -61,7 +70,7 @@ def extract_multiple_submissions(submission_ids, output_dir='tests/fixtures/subm
     - submission_ids: list of submission IDs to extract
     - output_dir: directory to save the YAML files
     """
-    reddit = setup_reddit()
+    reddit: praw.Reddit = setup_reddit()
 
     for submission_id in submission_ids:
         extract_submission_by_id(reddit, submission_id, output_dir)
@@ -70,7 +79,7 @@ def extract_multiple_submissions(submission_ids, output_dir='tests/fixtures/subm
 
 if __name__ == "__main__":
     # List of submission IDs to extract
-    submission_ids = [
+    submission_ids: List[str] = [
         '1jzplfx',  # BTC Maxi's - Bitcoin subreddit - Positive
         '1k0fod8',  # Gold vs BTC - CryptoCurrency subreddit - Positive
         '1kbr8vn',  # ETH gas fees issue - Ethereum subreddit - Negative

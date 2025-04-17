@@ -2,8 +2,7 @@ import os
 
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
-from vaderSentiment.vaderSentiment import \
-    SentimentIntensityAnalyzer  # type: ignore [import]
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer  # type: ignore [import]
 
 # Import the functions to test
 from reddit_fetch import load_config, process_reddit_submission
