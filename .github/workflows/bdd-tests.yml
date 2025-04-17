@@ -46,13 +46,3 @@ jobs:
       run: |
         python -m pytest -v --gherkin-terminal-reporter
         
-    - name: Run BDD tests with JUnit XML output
-      if: always()  # Run even if previous step fails
-      run: |
-        python -m pytest -v --junitxml=test-results.xml
-      
-    - name: Publish Test Results
-      uses: EnricoMi/publish-unit-test-result-action@v1
-      if: always()  # Run even if tests fail
-      with:
-        files: "test-results.xml"
