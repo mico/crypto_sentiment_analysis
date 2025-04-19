@@ -3,15 +3,16 @@ import os
 import re
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+from pydantic import BaseModel, HttpUrl
 
 import pandas as pd
-import praw  # type: ignore [import]
+import praw  # type: ignore [import-untyped]
 import yaml
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import text
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer  # type: ignore [import]
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer  # type: ignore [import-untyped]
 
 from database import get_engine, get_session, SentimentData
 
@@ -21,6 +22,22 @@ logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
+
+
+class Config(BaseModel):
+    subreddits: List[str]
+    coin_keywords: Dict[str, List[str]]
+    general_terms: List[str]
+
+
+class ProcessedSubmission(BaseModel):
+    id: str                      # e.g., "RD_1jzplfx"
+    domain: str                  # Always "reddit.com"
+    title: str                   # Copied from original submission
+    coins: List[str]             # Extracted coins (e.g., ['BTC', 'ETH'])
+    published_at: datetime       # Datetime from UNIX timestamp
+    url: HttpUrl                 # Full Reddit post URL
+    sentiment: str               # e.g., "positive", "neutral", "negative"
 
 
 def setup_reddit() -> praw.Reddit:
@@ -34,7 +51,7 @@ def setup_reddit() -> praw.Reddit:
     )
 
 
-def load_config(config_path: str = 'config.yaml') -> Dict[str, Any]:
+def load_config(config_path: str = 'config.yaml') -> Config:
     """
     Load configuration from YAML file
 
@@ -46,7 +63,7 @@ def load_config(config_path: str = 'config.yaml') -> Dict[str, Any]:
     """
     try:
         with open(config_path, 'r') as file:
-            return yaml.safe_load(file)
+            return Config(**yaml.safe_load(file))
     except FileNotFoundError:
         logging.error(f"Config file not found: {config_path}")
         raise
@@ -59,8 +76,8 @@ def get_crypto_subreddits(config_path: str = 'config.yaml') -> List[str]:
     """
     List of cryptocurrency-related subreddits to monitor from config
     """
-    config: Dict[str, Any] = load_config(config_path)
-    return config['subreddits']
+    config: Config = load_config(config_path)
+    return config.subreddits
 
 
 def determine_sentiment(compound_score: float) -> str:
@@ -76,7 +93,7 @@ def determine_sentiment(compound_score: float) -> str:
         return 'Neutral'
 
 
-def extract_mentioned_coins(title: str, content: str, coin_keywords: Dict[str, List[str]]) -> str:
+def extract_mentioned_coins(title: str, content: str, coin_keywords: Dict[str, List[str]]) -> List[str]:
     """
     Extract mentioned cryptocurrency symbols from text with improved precision
     """
@@ -99,24 +116,23 @@ def extract_mentioned_coins(title: str, content: str, coin_keywords: Dict[str, L
         if found:
             mentioned_coins.append(coin)
 
-    result: str = ','.join(mentioned_coins) if mentioned_coins else ''
-    logging.debug(f"Final extracted coins: {result}")
-    return result
+    logging.debug(f"Final extracted coins: {','.join(mentioned_coins)}")
+    return mentioned_coins
 
 
 def get_coin_keywords(config_path: str = 'config.yaml') -> Dict[str, List[str]]:
     """
     Dictionary of coins and their related keywords to search for from config
     """
-    config: Dict[str, Any] = load_config(config_path)
-    return config['coin_keywords']
+    config: Config = load_config(config_path)
+    return config.coin_keywords
 
 
 def process_reddit_submission(
     submission: praw.models.Submission,
     analyzer: SentimentIntensityAnalyzer,
     coin_keywords: Dict[str, List[str]]
-) -> Dict[str, Any]:
+) -> ProcessedSubmission:
     """
     Process a single reddit.submission object and extract the necessary data
 
@@ -126,7 +142,7 @@ def process_reddit_submission(
     - coin_keywords: dictionary of coin keywords
 
     Returns:
-    - dict: post data dictionary with sentiment and coin information
+    - ProcessedSubmission
     """
     full_text: str = f"{submission.title} {submission.selftext}"
     logging.debug(f"Analyzing text: {full_text[:200]}...")
@@ -134,17 +150,15 @@ def process_reddit_submission(
     sentiment_scores: Dict[str, float] = analyzer.polarity_scores(full_text)
 
     # Create post entry
-    post_data: Dict[str, Any] = {
-        'id': f"RD_{submission.id}",
-        'domain': 'reddit.com',
-        'title': submission.title,
-        'coins': extract_mentioned_coins(submission.title, submission.selftext, coin_keywords),
-        'published_at': datetime.fromtimestamp(submission.created_utc),
-        'url': f"https://www.reddit.com{submission.permalink}",
-        'sentiment': determine_sentiment(sentiment_scores['compound'])
-    }
-
-    return post_data
+    return ProcessedSubmission(
+        id=f"RD_{submission.id}",
+        domain='reddit.com',
+        title=submission.title,
+        coins=extract_mentioned_coins(submission.title, submission.selftext, coin_keywords),
+        published_at=datetime.fromtimestamp(submission.created_utc),
+        url=HttpUrl(f"https://www.reddit.com{submission.permalink}"),
+        sentiment=determine_sentiment(sentiment_scores['compound'])
+    )
 
 
 def fetch_posts(
@@ -154,9 +168,9 @@ def fetch_posts(
     coin_keywords: Dict[str, List[str]],
     search_terms: List[str],
     limit: int = 100,
-    sort_types: Optional[List[str]] = None,
+    sort_types: List[str] = ['hot', 'new', 'top'],
     time_filter: str = 'week'
-) -> List[Dict[str, Any]]:
+) -> List[ProcessedSubmission]:
     """
     Generic function to fetch and analyze posts from a subreddit based on search terms
 
@@ -173,11 +187,8 @@ def fetch_posts(
     Returns:
     - List of processed post data dictionaries
     """
-    # Default sort types if none provided
-    if sort_types is None:
-        sort_types = ['hot', 'new', 'top']
 
-    processed_posts: List[Dict[str, Any]] = []
+    processed_posts: List[ProcessedSubmission] = []
     subreddit: praw.models.Subreddit = reddit.subreddit(subreddit_name)
 
     # Process sort-based posts
@@ -200,8 +211,7 @@ def fetch_posts(
                 if not submission.is_self:
                     continue
 
-                result = process_reddit_submission(submission, analyzer, coin_keywords)
-                processed_posts.append(result)
+                processed_posts.append(process_reddit_submission(submission, analyzer, coin_keywords))
                 time.sleep(0.1)  # Avoid hitting API limits
 
         except Exception as e:
@@ -236,7 +246,7 @@ def fetch_reddit_data(
     subreddit_name: str,
     analyzer: SentimentIntensityAnalyzer,
     coin_keywords: Dict[str, List[str]]
-) -> List[Dict[str, Any]]:
+) -> List[ProcessedSubmission]:
     """
     Fetch and analyze posts related to specific coins from a subreddit
     """
@@ -259,7 +269,7 @@ def fetch_general_crypto_posts(
     analyzer: SentimentIntensityAnalyzer,
     coin_keywords: Dict[str, List[str]],
     config_path: str = 'config.yaml'
-) -> List[Dict[str, Any]]:
+) -> List[ProcessedSubmission]:
     """Fetch general crypto discussion posts that might not mention specific coins.
 
     Parameters:
@@ -272,8 +282,8 @@ def fetch_general_crypto_posts(
     Returns:
     - List of processed post data dictionaries
     """
-    config: Dict[str, Any] = load_config(config_path)
-    general_terms: List[str] = config['general_terms']
+    config: Config = load_config(config_path)
+    general_terms: List[str] = config.general_terms
     return fetch_posts(
         reddit,
         subreddit_name,
@@ -306,7 +316,7 @@ def main() -> None:
     # Get list of subreddits to monitor
     subreddits: List[str] = get_crypto_subreddits()
 
-    all_posts: List[Dict[str, Any]] = []
+    all_posts: List[ProcessedSubmission] = []
 
     for subreddit_name in subreddits:
         print(f"Fetching data from r/{subreddit_name}...")
@@ -318,7 +328,10 @@ def main() -> None:
 
     if all_posts:
         # Convert to DataFrame
-        df: pd.DataFrame = pd.DataFrame(all_posts)
+        df: pd.DataFrame = pd.DataFrame([
+            {**post.model_dump(exclude={'coins'}), 'coins': ",".join(post.coins)}
+            for post in all_posts
+        ])
 
         # Check for existing IDs to avoid duplicates
         engine: Engine = get_engine()

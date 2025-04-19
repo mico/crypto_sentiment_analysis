@@ -1,9 +1,25 @@
 import os
 
 import yaml
+from pydantic import BaseModel, HttpUrl
+from typing import Optional
 
 
-def load_test_submission(submission_id, fixtures_dir='tests/fixtures/submissions'):
+class SubmissionData(BaseModel):
+    author: str
+    created_utc: float
+    id: str
+    num_comments: int
+    permalink: str
+    score: int
+    selftext: Optional[str]  # Sometimes it might be empty or None
+    subreddit: str
+    title: str
+    upvote_ratio: float
+    url: HttpUrl  # Ensures it's a valid URL
+
+
+def load_test_submission(submission_id: str, fixtures_dir: str = 'tests/fixtures/submissions') -> SubmissionData:
     """
     Load a test submission from a YAML file
 
@@ -19,17 +35,17 @@ def load_test_submission(submission_id, fixtures_dir='tests/fixtures/submissions
 
     try:
         with open(yaml_path, 'r') as f:
-            submission_data = yaml.safe_load(f)
+            submission_data = SubmissionData(**yaml.safe_load(f))
 
         # Create a simple object that mimics a Reddit submission
-        class TestSubmission:
-            def __init__(self, data):
-                self.__dict__.update(data)
+        # class TestSubmission:
+        #     def __init__(self, data: SubmissionData) -> None:
+        #         self.__dict__.update(data)
 
-                # Create a simple Subreddit-like object
-                if 'subreddit' in data and isinstance(data['subreddit'], str):
-                    self.subreddit = type('Subreddit', (), {'display_name': data['subreddit']})()
+        #         # Create a simple Subreddit-like object
+        #         if 'subreddit' in data and isinstance(data['subreddit'], str):
+        #             self.subreddit = type('Subreddit', (), {'display_name': data['subreddit']})()
 
-        return TestSubmission(submission_data)
+        return submission_data
     except FileNotFoundError:
-        raise ValueError(f"Submission {submission_id} not found in fixtures directory") 
+        raise ValueError(f"Submission {submission_id} not found in fixtures directory")

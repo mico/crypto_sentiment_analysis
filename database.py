@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, DateTime, create_engine
+from sqlalchemy import Column, Integer, String, DateTime, create_engine, Engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy.orm import sessionmaker, scoped_session, Session
+from typing import Optional
 
 
 Base = declarative_base()
@@ -21,12 +22,12 @@ class SentimentData(Base):  # type: ignore
     sentiment = Column(String, index=True)
 
 
-def get_engine(db_path='crypto_data.db'):
+def get_engine(db_path: str = 'crypto_data.db') -> Engine:
     """Create SQLAlchemy engine instance."""
     return create_engine(f'sqlite:///{db_path}')
 
 
-def get_session(engine=None):
+def get_session(engine: Optional[Engine] = None) -> Session:
     """Create a new Session."""
     if engine is None:
         engine = get_engine()
@@ -34,7 +35,7 @@ def get_session(engine=None):
     return Session()
 
 
-def init_db(engine=None):
+def init_db(engine: Optional[Engine] = None) -> None:
     """Create all tables in the database."""
     if engine is None:
         engine = get_engine()

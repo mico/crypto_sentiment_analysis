@@ -19,3 +19,5 @@ types-PyYAML
 types-requests
 alembic
 sqlalchemy
+pydantic
+coverage
