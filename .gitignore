@@ -44,3 +44,9 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.vscode
+.cursor
+.DS_Store
+crypto_data.db
+*.log
+.env.*

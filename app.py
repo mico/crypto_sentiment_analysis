@@ -1,4 +1,3 @@
-import sqlite3
 from collections import Counter
 from datetime import datetime, timedelta
 from typing import Dict, List, Union
@@ -8,16 +7,16 @@ import plotly.express as px  # type: ignore [import]
 import pytz
 import streamlit as st
 
+from database import get_engine
+
 st.set_page_config(
     page_title="Reddit sentiment data",
     page_icon="chart_with_upwards_trend",
     layout="wide"
 )
 
-conn = sqlite3.connect('crypto_data.db')
 query = "SELECT * FROM crypto_news_sentiment"
-query_df = pd.read_sql_query(query, conn)
-conn.close()
+query_df: pd.DataFrame = pd.read_sql_query(query, get_engine())
 
 # Update the datetime parsing to handle mixed formats
 query_df['published_at'] = pd.to_datetime(query_df['published_at'], format='mixed', utc=True).dt.tz_localize(None)

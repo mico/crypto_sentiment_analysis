@@ -1,7 +1,6 @@
 import logging
 import os
 import re
-import sqlite3
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -9,7 +8,12 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 import praw  # type: ignore [import]
 import yaml
+from sqlalchemy import Engine
+from sqlalchemy.orm import Session
+from sqlalchemy.sql import text
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer  # type: ignore [import]
+
+from database import get_engine, get_session, SentimentData
 
 # Set up logging
 logging.basicConfig(
@@ -17,56 +21,6 @@ logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
-
-
-def initialize_database(db_path: str = 'crypto_data.db') -> sqlite3.Connection:
-    """
-    Create the database and required tables if they don't exist
-    """
-    # Check if database file exists
-    db_exists: bool = os.path.isfile(db_path)
-
-    # Connect to the database (creates it if it doesn't exist)
-    conn: sqlite3.Connection = sqlite3.connect(db_path)
-    cursor: sqlite3.Cursor = conn.cursor()
-
-    if not db_exists:
-        print(f"Database file {db_path} not found. Creating new database...")
-
-        cursor = conn.cursor()
-        # Create the crypto_news_sentiment table
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS crypto_news_sentiment (
-            "index" INTEGER,
-            "id" INTEGER,
-            "domain" TEXT,
-            "title" TEXT,
-            "coins" TEXT,
-            "published_at" TEXT,
-            "url" TEXT,
-            "sentiment" TEXT
-        )
-        ''')
-
-        # Create any indexes that might improve performance
-        cursor.execute('''
-        CREATE INDEX IF NOT EXISTS idx_coins ON crypto_news_sentiment(coins)
-        ''')
-
-        cursor.execute('''
-        CREATE INDEX IF NOT EXISTS idx_sentiment ON crypto_news_sentiment(sentiment)
-        ''')
-
-        cursor.execute('''
-        CREATE INDEX IF NOT EXISTS idx_published_at ON crypto_news_sentiment(published_at)
-        ''')
-
-        conn.commit()
-        print("Database initialized successfully.")
-    else:
-        print(f"Using existing database: {db_path}")
-
-    return conn
 
 
 def setup_reddit() -> praw.Reddit:
@@ -246,8 +200,8 @@ def fetch_posts(
                 if not submission.is_self:
                     continue
 
-                post_data = process_reddit_submission(submission, analyzer, coin_keywords)
-                processed_posts.append(post_data)
+                result = process_reddit_submission(submission, analyzer, coin_keywords)
+                processed_posts.append(result)
                 time.sleep(0.1)  # Avoid hitting API limits
 
         except Exception as e:
@@ -256,15 +210,19 @@ def fetch_posts(
     # Process search-based posts
     for term in search_terms:
         try:
-            search_results = subreddit.search(term, time_filter=time_filter, limit=limit)
+            search_results = subreddit.search(
+                term, time_filter=time_filter, limit=limit
+            )
 
             for submission in search_results:
                 # Skip non-text posts
                 if not submission.is_self:
                     continue
 
-                post_data = process_reddit_submission(submission, analyzer, coin_keywords)
-                processed_posts.append(post_data)
+                result = process_reddit_submission(
+                    submission, analyzer, coin_keywords
+                )
+                processed_posts.append(result)
                 time.sleep(0.1)  # Avoid hitting API limits
 
         except Exception as e:
@@ -283,7 +241,7 @@ def fetch_reddit_data(
     Fetch and analyze posts related to specific coins from a subreddit
     """
     # Use coin names as search terms
-    search_terms = list(coin_keywords.keys())
+    search_terms: List[str] = list(coin_keywords.keys())
     return fetch_posts(
         reddit,
         subreddit_name,
@@ -314,7 +272,7 @@ def fetch_general_crypto_posts(
     Returns:
     - List of processed post data dictionaries
     """
-    config = load_config(config_path)
+    config: Dict[str, Any] = load_config(config_path)
     general_terms: List[str] = config['general_terms']
     return fetch_posts(
         reddit,
@@ -330,59 +288,69 @@ def fetch_general_crypto_posts(
 def main() -> None:
     # Check for required environment variables
     required_env_vars: List[str] = ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "REDDIT_USER_AGENT"]
-    missing_vars: List[str] = [var for var in required_env_vars if not os.environ.get(var)]
+    missing_vars: List[str] = [var for var in required_env_vars if var not in os.environ]
     if missing_vars:
-        raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
+        print(f"Error: Missing required environment variables: {', '.join(missing_vars)}")
+        print("Please set these variables before running.")
+        return
 
-    # Initialize Reddit and VADER
-    reddit: praw.Reddit = setup_reddit()
+    # Initialize VADER Sentiment Analyzer
     analyzer: SentimentIntensityAnalyzer = SentimentIntensityAnalyzer()
-    config_path: str = 'config.yaml'
-    coin_keywords: Dict[str, List[str]] = get_coin_keywords(config_path)
-    db_path: str = 'crypto_data.db'
-    conn: sqlite3.Connection = initialize_database(db_path)
 
-    # Get existing Reddit post IDs to avoid duplicates
-    query: str = "SELECT id FROM crypto_news_sentiment WHERE domain='reddit.com'"
-    existing_ids = pd.read_sql_query(query, conn)['id'].values
+    # Initialize Reddit API connection
+    reddit: praw.Reddit = setup_reddit()
 
-    all_posts_data: List[Dict[str, Any]] = []
+    # Load coin keywords from config
+    coin_keywords: Dict[str, List[str]] = get_coin_keywords()
 
-    # Fetch data from each subreddit
-    for subreddit_name in get_crypto_subreddits(config_path):
+    # Get list of subreddits to monitor
+    subreddits: List[str] = get_crypto_subreddits()
+
+    all_posts: List[Dict[str, Any]] = []
+
+    for subreddit_name in subreddits:
         print(f"Fetching data from r/{subreddit_name}...")
-        posts_data: List[Dict[str, Any]] = fetch_reddit_data(reddit, subreddit_name, analyzer, coin_keywords)
-        all_posts_data.extend(posts_data)
-        time.sleep(5)  # Rate limiting between subreddits
-
-    for subreddit_name in get_crypto_subreddits(config_path):
-        print(f"Fetching general posts from r/{subreddit_name}...")
-        general_posts: List[Dict[str, Any]] = fetch_general_crypto_posts(
-            reddit,
-            subreddit_name,
-            analyzer,
-            coin_keywords,
-            config_path
+        posts = fetch_reddit_data(
+            reddit, subreddit_name, analyzer, coin_keywords
         )
-        all_posts_data.extend(general_posts)
-        time.sleep(3)  # Rate limiting
+        all_posts.extend(posts)
+        print(f"Fetched {len(posts)} posts from r/{subreddit_name}")
 
-    if all_posts_data:
+    if all_posts:
         # Convert to DataFrame
-        df: pd.DataFrame = pd.DataFrame(all_posts_data)
+        df: pd.DataFrame = pd.DataFrame(all_posts)
 
-        # Remove duplicates and posts we already have
-        df = df.drop_duplicates(subset=['id'])
-        df = df[~df['id'].isin(existing_ids)]
+        # Check for existing IDs to avoid duplicates
+        engine: Engine = get_engine()
+        existing_ids_query = text("SELECT id FROM sentiment_data")
+        existing_ids = pd.read_sql_query(existing_ids_query, engine)['id'].values
 
-        # Store in database
-        if not df.empty:
-            df.to_sql('crypto_news_sentiment', conn, if_exists='append', index=False)
-            print(f"Added {len(df)} new records to database")
+        # Filter out already existing posts
+        print(f"Total posts fetched: {len(df)}")
+        new_df: pd.DataFrame = df[~df['id'].isin(existing_ids)]
+        print(f"New posts to add: {len(new_df)}")
+
+        if not new_df.empty:
+            # Insert new posts into database using SQLAlchemy
+            new_records = new_df.to_dict('records')
+            session: Session = get_session(engine)
+            try:
+                for record in new_records:
+                    # Ensure all keys in record are strings to fix the linter error
+                    record_dict: Dict[str, Any] = {str(k): v for k, v in record.items()}
+                    sentiment_data = SentimentData(**record_dict)
+                    session.add(sentiment_data)
+                session.commit()
+                print(f"Successfully added {len(new_records)} new posts to database")
+            except Exception as e:
+                session.rollback()
+                print(f"Error adding posts to database: {e}")
+            finally:
+                session.close()
         else:
-            print("No new data to add")
-
-    conn.close()
+            print("No new posts to add.")
+    else:
+        print("No posts were fetched.")
 
 
 if __name__ == "__main__":

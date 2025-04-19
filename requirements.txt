@@ -1,5 +1,6 @@
 requests
 pandas
+pandas-stubs
 textblob
 numpy
 plotly
@@ -10,3 +11,11 @@ pytest
 vcrpy
 python-dotenv
 pytest-bdd
+black
+flake8
+isort
+mypy
+types-PyYAML
+types-requests
+alembic
+sqlalchemy
