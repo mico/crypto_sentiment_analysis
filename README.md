@@ -42,6 +42,13 @@ pip install -r requirements.txt
 export REDDIT_CLIENT_ID="your_client_id"
 export REDDIT_CLIENT_SECRET="your_client_secret"
 export REDDIT_USER_AGENT="your_user_agent"
+```
+
+4. Run database migrations:
+```bash
+# Initialize the database schema
+alembic upgrade head
+```
 
 ## Usage
 
