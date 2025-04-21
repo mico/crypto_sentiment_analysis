@@ -1,14 +1,14 @@
 from typing import Dict, List
+
 import pytest
+from pydantic import BaseModel
 from pytest_bdd import given, parsers, scenarios, then, when
 
 # Import the functions to test
 from reddit_fetch import extract_mentioned_coins
 
-from pydantic import BaseModel
-
 # Register scenarios from the coin extraction feature file
-scenarios('features/coin_extraction.feature')
+scenarios('../coin_extraction.feature')
 
 
 class ExtractionData(BaseModel):

@@ -1,16 +1,17 @@
 import os
+from typing import Dict, List
 
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer  # type: ignore [import-untyped]
 
 # Import the functions to test
-from reddit_fetch import load_config, process_reddit_submission, Config, ProcessedSubmission
+from reddit_fetch import (Config, ProcessedSubmission, load_config,
+                          process_reddit_submission)
 from tests.utils import load_test_submission
-from typing import Dict, List
 
 # Register scenarios from the submission analysis feature file
-scenarios('features/submission_analysis.feature')
+scenarios('../submission_analysis.feature')
 
 
 @pytest.fixture
@@ -42,7 +43,7 @@ def test_coin_keywords(test_config: Config) -> Dict[str, List[str]]:
 @pytest.fixture
 def test_submissions_dir() -> str:
     """Path to test submission fixtures directory"""
-    return os.path.join(os.path.dirname(__file__), 'fixtures', 'submissions')
+    return os.path.join(os.path.dirname(__file__), '..', '..', 'fixtures', 'submissions')
 
 
 @given("a set of cryptocurrency keywords", target_fixture="coin_keywords")

@@ -4,7 +4,7 @@ import sys
 import time
 from typing import Any, Dict, List
 
-import praw  # type: ignore [import]
+import praw  # type: ignore [import-untyped]
 import yaml
 
 from reddit_fetch import setup_reddit
@@ -14,8 +14,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 
 def extract_submission_by_id(
-    reddit: praw.Reddit, 
-    submission_id: str, 
+    reddit: praw.Reddit,
+    submission_id: str,
     output_dir: str = 'tests/fixtures/submissions'
 ) -> None:
     """
@@ -60,7 +60,7 @@ def extract_submission_by_id(
 
 
 def extract_multiple_submissions(
-    submission_ids: List[str], 
+    submission_ids: List[str],
     output_dir: str = 'tests/fixtures/submissions'
 ) -> None:
     """
