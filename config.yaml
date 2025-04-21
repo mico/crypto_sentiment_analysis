@@ -1,7 +1,10 @@
 # Cryptocurrency Analysis Configuration
-# 
+#
 # This configuration file contains settings for the cryptocurrency sentiment analysis system.
 # For test fixtures, see the tests/fixtures directory.
+
+db_path: crypto_data.db
+posts_limit: 100
 
 # List of cryptocurrency-related subreddits to monitor
 subreddits:
@@ -86,4 +89,4 @@ general_terms:
   - trading
   - market
   - bull
-  - bear 
+  - bear

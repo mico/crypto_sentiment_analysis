@@ -4,17 +4,17 @@ import re
 import time
 from datetime import datetime
 from typing import Any, Dict, List
-from pydantic import BaseModel, HttpUrl
 
 import pandas as pd
 import praw  # type: ignore [import-untyped]
 import yaml
+from pydantic import BaseModel, HttpUrl
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import text
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer  # type: ignore [import-untyped]
 
-from database import get_engine, get_session, SentimentData
+from database import SentimentData, get_engine, get_session
 
 # Set up logging
 logging.basicConfig(
@@ -28,6 +28,8 @@ class Config(BaseModel):
     subreddits: List[str]
     coin_keywords: Dict[str, List[str]]
     general_terms: List[str]
+    db_path: str
+    posts_limit: int
 
 
 class ProcessedSubmission(BaseModel):
@@ -44,6 +46,9 @@ def setup_reddit() -> praw.Reddit:
     """
     Initialize Reddit API connection
     """
+    if 'PYTEST_CURRENT_TEST' in os.environ:
+        return praw.Reddit(client_id="", client_secret="", user_agent="Test")
+
     # Check for required environment variables
     required_env_vars: List[str] = ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "REDDIT_USER_AGENT"]
     missing_vars: List[str] = [var for var in required_env_vars if var not in os.environ]
@@ -230,89 +235,137 @@ def fetch_reddit_data(
     reddit: praw.Reddit,
     subreddit_name: str,
     analyzer: SentimentIntensityAnalyzer,
-    coin_keywords: Dict[str, List[str]]
+    config: Config
 ) -> List[ProcessedSubmission]:
     """
     Fetch and analyze posts related to specific coins from a subreddit
     """
     # Use coin names as search terms
-    search_terms: List[str] = list(coin_keywords.keys())
+    search_terms: List[str] = list(config.coin_keywords.keys())
     return fetch_posts(
         reddit,
         subreddit_name,
         analyzer,
-        coin_keywords,
+        config.coin_keywords,
         search_terms=search_terms,
         sort_types=['hot', 'new', 'top'],
-        limit=100
+        limit=config.posts_limit
     )
 
 
-def main() -> None:
+def fetch_all_subreddit_data(
+    reddit: praw.Reddit,
+    analyzer: SentimentIntensityAnalyzer,
+    config: Config
+) -> List[ProcessedSubmission]:
+    """
+    Fetch data from all specified subreddits.
 
+    Parameters:
+    - reddit: praw.Reddit instance
+    - subreddits: List of subreddit names to fetch from
+    - analyzer: SentimentIntensityAnalyzer instance
+    - coin_keywords: Dictionary of coin keywords
+
+    Returns:
+    - List of ProcessedSubmission objects
+    """
+    all_posts: List[ProcessedSubmission] = []
+
+    for subreddit_name in config.subreddits:
+        print(f"Fetching data from r/{subreddit_name}...")
+        posts = fetch_reddit_data(
+            reddit, subreddit_name, analyzer, config
+        )
+        all_posts.extend(posts)
+        print(f"Fetched {len(posts)} posts from r/{subreddit_name}")
+
+    return all_posts
+
+
+def store_submissions_in_database(
+    posts: List[ProcessedSubmission],
+    engine: Engine
+) -> int:
+    """
+    Store submission data in the database.
+
+    Parameters:
+    - posts: List of ProcessedSubmission objects
+    - engine: SQLAlchemy Engine instance
+
+    Returns:
+    - Number of new posts added to the database
+    """
+    if not posts:
+        print("No posts were fetched.")
+        return 0
+
+    # Convert to DataFrame
+    df: pd.DataFrame = pd.DataFrame([
+        {**post.model_dump(exclude={'coins', 'url'}),
+         'coins': ",".join(post.coins),
+         'url': str(post.url)}
+        for post in posts
+    ])
+
+    # Check for existing IDs to avoid duplicates
+    existing_ids_query = text("SELECT id FROM sentiment_data")
+    existing_ids = pd.read_sql_query(existing_ids_query, engine)['id'].values
+
+    # Filter out already existing posts
+    print(f"Total posts fetched: {len(df)}")
+    new_df: pd.DataFrame = df[~df['id'].isin(existing_ids)]
+    print(f"New posts to add: {len(new_df)}")
+
+    if new_df.empty:
+        print("No new posts to add.")
+        return 0
+
+    # Insert new posts into database using SQLAlchemy
+    new_records = new_df.to_dict('records')
+    session: Session = get_session(engine)
+    try:
+        for record in new_records:
+            # Ensure all keys in record are strings to fix the linter error
+            record_dict: Dict[str, Any] = {str(k): v for k, v in record.items()}
+            sentiment_data = SentimentData(**record_dict)
+            session.add(sentiment_data)
+        session.commit()
+        print(f"Successfully added {len(new_records)} new posts to database")
+        return len(new_records)
+    except Exception as e:
+        session.rollback()
+        print(f"Error adding posts to database: {e}")
+        return 0
+    finally:
+        session.close()
+
+
+def main(config: Config) -> None:
+    """
+    Main function to fetch Reddit data and store it in the database.
+    """
     # Initialize VADER Sentiment Analyzer
     analyzer: SentimentIntensityAnalyzer = SentimentIntensityAnalyzer()
 
     # Initialize Reddit API connection
     reddit: praw.Reddit = setup_reddit()
 
-    config: Config = load_config('config.yaml')
+    # Load configuration
 
-    # Load coin keywords from config
-    coin_keywords: Dict[str, List[str]] = config.coin_keywords
+    # Fetch data from all subreddits
+    all_posts = fetch_all_subreddit_data(
+        reddit,
+        analyzer,
+        config
+    )
 
-    # Get list of subreddits to monitor
-    subreddits: List[str] = config.subreddits
-
-    all_posts: List[ProcessedSubmission] = []
-
-    for subreddit_name in subreddits:
-        print(f"Fetching data from r/{subreddit_name}...")
-        posts = fetch_reddit_data(
-            reddit, subreddit_name, analyzer, coin_keywords
-        )
-        all_posts.extend(posts)
-        print(f"Fetched {len(posts)} posts from r/{subreddit_name}")
-
-    if all_posts:
-        # Convert to DataFrame
-        df: pd.DataFrame = pd.DataFrame([
-            {**post.model_dump(exclude={'coins'}), 'coins': ",".join(post.coins)}
-            for post in all_posts
-        ])
-
-        # Check for existing IDs to avoid duplicates
-        engine: Engine = get_engine()
-        existing_ids_query = text("SELECT id FROM sentiment_data")
-        existing_ids = pd.read_sql_query(existing_ids_query, engine)['id'].values
-
-        # Filter out already existing posts
-        print(f"Total posts fetched: {len(df)}")
-        new_df: pd.DataFrame = df[~df['id'].isin(existing_ids)]
-        print(f"New posts to add: {len(new_df)}")
-
-        if not new_df.empty:
-            # Insert new posts into database using SQLAlchemy
-            new_records = new_df.to_dict('records')
-            session: Session = get_session(engine)
-            try:
-                for record in new_records:
-                    # Ensure all keys in record are strings to fix the linter error
-                    record_dict: Dict[str, Any] = {str(k): v for k, v in record.items()}
-                    sentiment_data = SentimentData(**record_dict)
-                    session.add(sentiment_data)
-                session.commit()
-                print(f"Successfully added {len(new_records)} new posts to database")
-            except Exception as e:
-                session.rollback()
-                print(f"Error adding posts to database: {e}")
-            finally:
-                session.close()
-        else:
-            print("No new posts to add.")
-    else:
-        print("No posts were fetched.")
+    # Store data in database
+    engine: Engine = get_engine(config.db_path)
+    store_submissions_in_database(all_posts, engine)
 
 
 if __name__ == "__main__":
-    main()
+    config: Config = load_config('config.yaml')
+    main(config)
