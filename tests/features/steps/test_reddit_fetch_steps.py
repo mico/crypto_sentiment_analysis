@@ -18,7 +18,7 @@ TEST_DB_PATH: str = "test_crypto_data.db"
 # Setup VCR for recording/replaying API interactions
 vcr_instance: vcr.VCR = vcr.VCR(
     cassette_library_dir="tests/fixtures/vcr_cassettes",
-    record_mode=os.environ.get("VCR_RECORD_MODE", "once"),
+    record_mode=os.environ.get("VCR_RECORD_MODE", "new_episodes"),
     match_on=["uri", "method"],
     filter_headers=["Authorization", "User-Agent"],
     serializer="yaml",

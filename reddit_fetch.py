@@ -46,8 +46,6 @@ def setup_reddit() -> praw.Reddit:
     """
     Initialize Reddit API connection
     """
-    if 'PYTEST_CURRENT_TEST' in os.environ:
-        return praw.Reddit(client_id="", client_secret="", user_agent="Test")
 
     # Check for required environment variables
     required_env_vars: List[str] = ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "REDDIT_USER_AGENT"]
