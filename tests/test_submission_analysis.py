@@ -77,8 +77,11 @@ def analyze_test_submission(submission_id: str, submissions_dir: str,
 
 @then(parsers.parse('the sentiment should be classified as "{expected_sentiment}"'))
 def check_submission_sentiment(analysis_result: ProcessedSubmission, expected_sentiment: str) -> None:
-    """Check if the sentiment classification matches the expected value"""
-    assert analysis_result.sentiment == expected_sentiment
+    """Check if the sentiment value has the same sign (positive/negative) as expected value"""
+    expected_value = float(expected_sentiment)
+
+    assert abs(analysis_result.sentiment - expected_value) < 0.1, \
+        f"Expected sentiment close to {expected_value} but got {analysis_result.sentiment}"
 
 
 @then(parsers.parse('the extracted coins should include "{expected_coins}"'))

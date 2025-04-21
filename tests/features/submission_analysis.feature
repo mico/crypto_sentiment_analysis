@@ -17,7 +17,7 @@ Feature: Submission Analysis
 
     Examples:
       | submission_id | expected_sentiment | expected_coins | title_keyword | subreddit      |
-      | 1jzplfx       | Positive          | BTC            | Maxi          | Bitcoin        |
-      | 1k0fod8       | Positive          | BTC            | Gold          | CryptoCurrency |
-      | 1kbr8vn       | Negative          | ETH            | gas           | ethereum       |
-      | 1j5m2pq       | Positive          | SOL            | wallet        | solana         |
+      | 1jzplfx       | 0.3                | BTC            | Maxi          | Bitcoin        |
+      | 1k0fod8       | 0.7                | BTC            | Gold          | CryptoCurrency |
+      | 1kbr8vn       | -0.6               | ETH            | gas           | ethereum       |
+      | 1j5m2pq       | 0.6                | SOL            | wallet        | solana         |

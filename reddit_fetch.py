@@ -37,13 +37,19 @@ class ProcessedSubmission(BaseModel):
     coins: List[str]             # Extracted coins (e.g., ['BTC', 'ETH'])
     published_at: datetime       # Datetime from UNIX timestamp
     url: HttpUrl                 # Full Reddit post URL
-    sentiment: str               # e.g., "positive", "neutral", "negative"
+    sentiment: float               # VADER sentiment score from -1 to 1
 
 
 def setup_reddit() -> praw.Reddit:
     """
     Initialize Reddit API connection
     """
+    # Check for required environment variables
+    required_env_vars: List[str] = ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "REDDIT_USER_AGENT"]
+    missing_vars: List[str] = [var for var in required_env_vars if var not in os.environ]
+    if missing_vars:
+        raise ValueError(f"Error: Missing required environment variables: {', '.join(missing_vars)}")
+
     return praw.Reddit(
         client_id=os.environ["REDDIT_CLIENT_ID"],
         client_secret=os.environ["REDDIT_CLIENT_SECRET"],
@@ -72,25 +78,12 @@ def load_config(config_path: str = 'config.yaml') -> Config:
         raise
 
 
-def get_crypto_subreddits(config_path: str = 'config.yaml') -> List[str]:
+def determine_sentiment(compound_score: float) -> float:
     """
-    List of cryptocurrency-related subreddits to monitor from config
-    """
-    config: Config = load_config(config_path)
-    return config.subreddits
-
-
-def determine_sentiment(compound_score: float) -> str:
-    """
-    Convert VADER compound score to categorical sentiment
+    Return the VADER compound score directly
     VADER compound score ranges from -1 (most negative) to +1 (most positive)
     """
-    if compound_score >= 0.05:
-        return 'Positive'
-    elif compound_score <= -0.05:
-        return 'Negative'
-    else:
-        return 'Neutral'
+    return compound_score
 
 
 def extract_mentioned_coins(title: str, content: str, coin_keywords: Dict[str, List[str]]) -> List[str]:
@@ -118,14 +111,6 @@ def extract_mentioned_coins(title: str, content: str, coin_keywords: Dict[str, L
 
     logging.debug(f"Final extracted coins: {','.join(mentioned_coins)}")
     return mentioned_coins
-
-
-def get_coin_keywords(config_path: str = 'config.yaml') -> Dict[str, List[str]]:
-    """
-    Dictionary of coins and their related keywords to search for from config
-    """
-    config: Config = load_config(config_path)
-    return config.coin_keywords
 
 
 def process_reddit_submission(
@@ -157,7 +142,7 @@ def process_reddit_submission(
         coins=extract_mentioned_coins(submission.title, submission.selftext, coin_keywords),
         published_at=datetime.fromtimestamp(submission.created_utc),
         url=HttpUrl(f"https://www.reddit.com{submission.permalink}"),
-        sentiment=determine_sentiment(sentiment_scores['compound'])
+        sentiment=sentiment_scores['compound']
     )
 
 
@@ -263,46 +248,7 @@ def fetch_reddit_data(
     )
 
 
-def fetch_general_crypto_posts(
-    reddit: praw.Reddit,
-    subreddit_name: str,
-    analyzer: SentimentIntensityAnalyzer,
-    coin_keywords: Dict[str, List[str]],
-    config_path: str = 'config.yaml'
-) -> List[ProcessedSubmission]:
-    """Fetch general crypto discussion posts that might not mention specific coins.
-
-    Parameters:
-    - reddit: praw Reddit instance
-    - subreddit_name: name of the subreddit to search
-    - analyzer: sentiment analyzer instance
-    - coin_keywords: dictionary of coin keywords
-    - config_path: path to configuration file
-
-    Returns:
-    - List of processed post data dictionaries
-    """
-    config: Config = load_config(config_path)
-    general_terms: List[str] = config.general_terms
-    return fetch_posts(
-        reddit,
-        subreddit_name,
-        analyzer,
-        coin_keywords,
-        search_terms=general_terms,
-        sort_types=['hot', 'new', 'top'],
-        limit=75
-    )
-
-
 def main() -> None:
-    # Check for required environment variables
-    required_env_vars: List[str] = ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "REDDIT_USER_AGENT"]
-    missing_vars: List[str] = [var for var in required_env_vars if var not in os.environ]
-    if missing_vars:
-        print(f"Error: Missing required environment variables: {', '.join(missing_vars)}")
-        print("Please set these variables before running.")
-        return
 
     # Initialize VADER Sentiment Analyzer
     analyzer: SentimentIntensityAnalyzer = SentimentIntensityAnalyzer()
@@ -310,11 +256,13 @@ def main() -> None:
     # Initialize Reddit API connection
     reddit: praw.Reddit = setup_reddit()
 
+    config: Config = load_config('config.yaml')
+
     # Load coin keywords from config
-    coin_keywords: Dict[str, List[str]] = get_coin_keywords()
+    coin_keywords: Dict[str, List[str]] = config.coin_keywords
 
     # Get list of subreddits to monitor
-    subreddits: List[str] = get_crypto_subreddits()
+    subreddits: List[str] = config.subreddits
 
     all_posts: List[ProcessedSubmission] = []
 
