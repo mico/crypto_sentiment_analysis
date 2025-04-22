@@ -20,29 +20,32 @@ on:
 jobs:
   bdd-tests:
     runs-on: ubuntu-latest
-    
+    environment: 'test'
+
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
-        
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-                
-    - name: Create empty .env.testing file
-      run: |
-        touch .env.testing
-        # Add any required test environment variables
-        echo "TEST_REDDIT_CLIENT_ID=dummy_id" >> .env.testing
-        echo "TEST_REDDIT_CLIENT_SECRET=dummy_secret" >> .env.testing
-        echo "TEST_REDDIT_USER_AGENT=python:crypto-sentiment-test:v1.0" >> .env.testing
-        
+
+    - name: Print REDDIT_USER_AGENT
+      run: echo "MY_REDDIT_USER_AGENTVAR is $REDDIT_USER_AGENT"
+      env:
+        REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
+
+
     - name: Run BDD tests
       run: |
         python -m pytest -v --gherkin-terminal-reporter
-        
+      env:
+        REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+        REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+        REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
+
