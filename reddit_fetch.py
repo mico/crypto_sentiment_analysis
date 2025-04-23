@@ -272,12 +272,21 @@ def store_submissions_in_database(
         print("No posts were fetched.")
         return 0
 
+    # Filter duplicate posts by ID (keep first occurrence only)
+    seen_ids: set[str] = set()
+    unique_posts: List[ProcessedSubmission] = []
+
+    for post in posts:
+        if post.id not in seen_ids:
+            seen_ids.add(post.id)
+            unique_posts.append(post)
+
     # Convert to DataFrame
     df: pd.DataFrame = pd.DataFrame([
         {**post.model_dump(exclude={'coins', 'url'}),
          'coins': ",".join(post.coins),
          'url': str(post.url)}
-        for post in posts
+        for post in unique_posts
     ])
 
     # Check for existing IDs to avoid duplicates
@@ -285,7 +294,8 @@ def store_submissions_in_database(
     existing_ids = pd.read_sql_query(existing_ids_query, engine)['id'].values
 
     # Filter out already existing posts
-    print(f"Total posts fetched: {len(df)}")
+    print(f"Total posts fetched: {len(posts)}")
+    print(f"Unique posts after removing duplicates: {len(unique_posts)}")
     new_df: pd.DataFrame = df[~df['id'].isin(existing_ids)]
     print(f"New posts to add: {len(new_df)}")
 
@@ -317,24 +327,16 @@ def main(config: Config) -> None:
     """
     Main function to fetch Reddit data and store it in the database.
     """
-    # Initialize VADER Sentiment Analyzer
-    analyzer: SentimentIntensityAnalyzer = SentimentIntensityAnalyzer()
-
-    # Initialize Reddit API connection
-    reddit: praw.Reddit = setup_reddit()
-
-    # Load configuration
 
     # Fetch data from all subreddits
     all_posts = fetch_all_subreddit_data(
-        reddit,
-        analyzer,
+        setup_reddit(),
+        SentimentIntensityAnalyzer(),
         config
     )
 
     # Store data in database
-    engine: Engine = get_engine(config.db_path)
-    store_submissions_in_database(all_posts, engine)
+    store_submissions_in_database(all_posts, get_engine(config.db_path))
 
 
 if __name__ == "__main__":
