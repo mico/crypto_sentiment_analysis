@@ -21,3 +21,4 @@ alembic
 sqlalchemy
 pydantic
 coverage
+ruff

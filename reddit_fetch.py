@@ -112,6 +112,48 @@ def process_reddit_submission(
     )
 
 
+def _fetch_posts(
+    subreddit: praw.models.Subreddit,
+    fetch_method: str,
+    query_param: str,
+    limit: int,
+    time_filter: str,
+    analyzer: SentimentIntensityAnalyzer,
+    coin_keywords: Dict[str, List[str]],
+) -> List[ProcessedSubmission]:
+    """Generic function to fetch posts by either sort type or search term."""
+    processed: List[ProcessedSubmission] = []
+    try:
+        # Get submissions based on fetch method
+        if fetch_method == 'sort':
+            if query_param == 'hot':
+                submissions = subreddit.hot(limit=limit)
+            elif query_param == 'new':
+                submissions = subreddit.new(limit=limit)
+            elif query_param == 'top':
+                submissions = subreddit.top(time_filter=time_filter, limit=limit)
+            elif query_param == 'rising':
+                submissions = subreddit.rising(limit=limit)
+            else:
+                logging.warning(f"Unknown sort type skipped: {query_param}")
+                return []
+        elif fetch_method == 'search':
+            submissions = subreddit.search(query_param, time_filter=time_filter, limit=limit)
+        else:
+            logging.warning(f"Unknown fetch method: {fetch_method}")
+            return []
+
+        # Process submissions
+        for submission in submissions:
+            if not submission.is_self:  # Skip non-text posts
+                continue
+            processed.append(process_reddit_submission(submission, analyzer, coin_keywords))
+            time.sleep(0.1)
+    except Exception as e:
+        logging.error(f"Error fetching posts via {fetch_method} ({query_param}) from r/{subreddit.display_name}: {e}")
+    return processed
+
+
 def fetch_posts(
     reddit: praw.Reddit,
     subreddit_name: str,
@@ -119,7 +161,7 @@ def fetch_posts(
     coin_keywords: Dict[str, List[str]],
     search_terms: List[str],
     limit: int = 100,
-    sort_types: List[str] = ['hot', 'new', 'top'],
+    sort_types: List[str] | None = None,
     time_filter: str = 'week'
 ) -> List[ProcessedSubmission]:
     """
@@ -138,56 +180,26 @@ def fetch_posts(
     Returns:
     - List of processed post data dictionaries
     """
+    if sort_types is None:
+        sort_types = ['hot', 'new', 'top']
 
-    processed_posts: List[ProcessedSubmission] = []
     subreddit: praw.models.Subreddit = reddit.subreddit(subreddit_name)
 
-    # Process sort-based posts
-    for sort_type in sort_types:
-        try:
-            if sort_type == 'hot':
-                submissions = subreddit.hot(limit=limit)
-            elif sort_type == 'new':
-                submissions = subreddit.new(limit=limit)
-            elif sort_type == 'top':
-                submissions = subreddit.top(time_filter=time_filter, limit=limit)
-            elif sort_type == 'rising':
-                submissions = subreddit.rising(limit=limit)
-            else:
-                continue  # Skip unknown sort types
+    # Define fetch operations with their parameters
+    fetch_operations = [
+        # Sort type operations
+        *[('sort', sort_type) for sort_type in sort_types],
 
-            # Process each submission
-            for submission in submissions:
-                # Skip non-text posts
-                if not submission.is_self:
-                    continue
+        # Search term operations
+        *[('search', term) for term in search_terms]
+    ]
 
-                processed_posts.append(process_reddit_submission(submission, analyzer, coin_keywords))
-                time.sleep(0.1)  # Avoid hitting API limits
-
-        except Exception as e:
-            logging.error(f"Error fetching {sort_type} posts from r/{subreddit_name}: {e}")
-
-    # Process search-based posts
-    for term in search_terms:
-        try:
-            search_results = subreddit.search(
-                term, time_filter=time_filter, limit=limit
-            )
-
-            for submission in search_results:
-                # Skip non-text posts
-                if not submission.is_self:
-                    continue
-
-                result = process_reddit_submission(
-                    submission, analyzer, coin_keywords
-                )
-                processed_posts.append(result)
-                time.sleep(0.1)  # Avoid hitting API limits
-
-        except Exception as e:
-            logging.error(f"Error searching for '{term}' in r/{subreddit_name}: {e}")
+    # Execute all fetch operations and collect the results
+    processed_posts = [
+        post
+        for method, param in fetch_operations
+        for post in _fetch_posts(subreddit, method, param, limit, time_filter, analyzer, coin_keywords)
+    ]
 
     return processed_posts
 
@@ -201,14 +213,12 @@ def fetch_reddit_data(
     """
     Fetch and analyze posts related to specific coins from a subreddit
     """
-    # Use coin names as search terms
-    search_terms: List[str] = list(config.coin_keywords.keys())
     return fetch_posts(
         reddit,
         subreddit_name,
         analyzer,
         config.coin_keywords,
-        search_terms=search_terms,
+        search_terms=list(config.coin_keywords.keys()),
         sort_types=['hot', 'new', 'top'],
         limit=config.posts_limit
     )

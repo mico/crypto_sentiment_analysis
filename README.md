@@ -1,6 +1,6 @@
 # Cryptocurrency Sentiment Analysis for Reddit
 
-[![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green)](https://opensource.org/licenses/MIT)
 [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=mico_crypto_sentiment_analysis&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=mico_crypto_sentiment_analysis)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=mico_crypto_sentiment_analysis&metric=sqale_rating)](https://sonarcloud.io/dashboard?id=mico_crypto_sentiment_analysis)
@@ -98,4 +98,4 @@ The dashboard will be accessible at `http://localhost:8501` and displays:
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request. 
+Contributions are welcome! Please feel free to submit a Pull Request.
