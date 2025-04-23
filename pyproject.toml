@@ -11,6 +11,21 @@ warn_unused_ignores = true
 warn_return_any = true
 warn_unreachable = true
 
+[tool.ruff]
+lint.select = [
+    "F401", "F811", "F821",  # Error prevention
+    "E731",  # Style consistency
+    "B006", "B008", "B904",  # Bugbear best practices
+    "SIM108", "SIM115", "PTH123",  # Performance
+    "ANN204", "UP031",  # Type safety
+    "PT011", "S101", "S310",  # Testing/security
+    "C901"  # Cyclomatic complexity
+]
+line-length = 88
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10  # Set your desired maximum complexity value here
+
 [tool.coverage.run]
 parallel = true
 data_file = "coverage/.coverage"
