@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, create_engine, Engine
+from sqlalchemy import Column, Integer, String, DateTime, Float, create_engine, Engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session, Session
 from typing import Optional
@@ -19,7 +19,7 @@ class SentimentData(Base):  # type: ignore
     coins = Column(String, index=True)
     published_at = Column(DateTime, index=True)
     url = Column(String)
-    sentiment = Column(String, index=True)
+    sentiment = Column(Float, index=True)
 
 
 def get_engine(db_path: str = 'crypto_data.db') -> Engine:

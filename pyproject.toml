@@ -23,6 +23,8 @@ lint.select = [
 ]
 line-length = 88
 
+lint.per-file-ignores = { "tests/*" = ["S101"] }
+
 [tool.ruff.lint.mccabe]
 max-complexity = 10  # Set your desired maximum complexity value here
 
